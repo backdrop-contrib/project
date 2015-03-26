@@ -1,0 +1,7 @@
+{
+    "_config_name": "project_release.settings",
+    "api_versions": [
+        "1.x",
+        "2.x"
+    ]
+}
