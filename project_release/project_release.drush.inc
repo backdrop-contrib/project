@@ -159,9 +159,6 @@ function project_release_history_generate_project_xml($project, $version_api = N
       $output = "<release>\n";
       $output .= '  <name>' . check_plain($release->title) . "</name>\n";
       $output .= '  <version>' . check_plain($release->project_release['version']) . "</version>\n";
-      if (!empty($release->project_release['tag'])) {
-        $output .= '  <tag>' . check_plain($release->project_release['tag']) . "</tag>\n";
-      }
       foreach (array('major', 'minor', 'patch', 'extra') as $type) {
         $version_type = 'version_' . $type;
         // 0 is a totally legitimate value for any of these version fields, so

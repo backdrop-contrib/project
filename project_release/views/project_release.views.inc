@@ -6,25 +6,6 @@
  */
 
 /**
- * Implements hook_views_handlers().
- */
-function project_release_views_handlers() {
-  return array(
-    'info' => array(
-      'path' => backdrop_get_path('module', 'project_release') .'/views/handlers',
-    ),
-    'handlers' => array(
-      'project_release_handler_filter_version' => array(
-        'parent' => 'views_handler_filter_field_list',
-      ),
-      'project_release_handler_relationship_supported_versions' => array(
-        'parent' => 'views_handler_relationship',
-      ),
-    ),
-  );
-}
-
-/**
  * Implementation of hook_views_data().
  *
  * Exposes all fields to the views system.
@@ -32,8 +13,111 @@ function project_release_views_handlers() {
 function project_release_views_data() {
   $data = array();
 
-  $data['project_release_supported_versions']['table']['group'] = t('Project release');
+  $data['project_release']['table']['group'] = t('Project release');
 
+  $data['project_release']['project_nid'] = array(
+    'title' => t('Project node'),
+    'help' => t('Relate a project release to its parent project.'),
+    'field' => array(
+      'handler' => 'views_handler_field_node',
+      'click sortable' => TRUE,
+    ),
+    'argument' => array(
+      'handler' => 'views_handler_argument_node_nid',
+      'name field' => 'title',
+      'numeric' => TRUE,
+      'validate type' => 'nid',
+    ),
+    'relationship' => array(
+      'base' => 'node',
+      'base field' => 'nid',
+      'handler' => 'views_handler_relationship',
+      'label' => t('Project node'),
+    ),
+  );
+  $data['project_release']['version_api'] = array(
+    'title' => t('API version'),
+    'help' => t('The supported API version.'),
+    'field' => array(
+      'handler' => 'views_handler_field',
+      'click sortable' => FALSE,
+    ),
+    'filter' => array(
+      'handler' => 'project_release_handler_filter_version_api',
+    ),
+  );
+  $data['project_release']['version_major'] = array(
+    'title' => t('Major version number'),
+    'help' => t('The "major" portion of a version number.'),
+    'field' => array(
+      'handler' => 'views_handler_field_numeric',
+      'click sortable' => TRUE,
+    ),
+  );
+  $data['project_release']['version_minor'] = array(
+    'title' => t('Minor version number'),
+    'help' => t('The "minor" portion of a version number.'),
+    'field' => array(
+      'handler' => 'views_handler_field_numeric',
+      'click sortable' => TRUE,
+    ),
+  );
+  $data['project_release']['version_patch'] = array(
+    'title' => t('Patch version number'),
+    'help' => t('The "patch" portion of a version number. e.g. alpha1, beta2, RC3.'),
+    'field' => array(
+      'handler' => 'views_handler_field',
+      'click sortable' => TRUE,
+    ),
+  );
+  $data['project_release']['update_status'] = array(
+    'title' => t('Update status'),
+    'help' => t('Indicator if this release is the latest available version. Either "current", "not-current", or "not-secure".'),
+    'field' => array(
+      'handler' => 'views_handler_field',
+      'click sortable' => TRUE,
+    ),
+    'filter' => array(
+      'handler' => 'project_release_handler_filter_update_status',
+    ),
+  );
+  $data['project_release']['security_update'] = array(
+    'title' => t('Is security update'),
+    'help' => t('Indicator if this release contains security fixes.'),
+    'field' => array(
+      'handler' => 'views_handler_field_boolean',
+      'click sortable' => TRUE,
+    ),
+    'filter' => array(
+      'handler' => 'views_handler_filter_boolean_operator',
+      'type' => 'yes-no',
+    ),
+  );
+  $data['project_release']['release_link'] = array(
+    'title' => t('Release link'),
+    'help' => t('URL to the release information page.'),
+    'field' => array(
+      'handler' => 'views_handler_field_url',
+      'click sortable' => TRUE,
+    ),
+    'filter' => array(
+      'handler' => 'views_handler_filter',
+    ),
+  );
+  $data['project_release']['download_link'] = array(
+    'title' => t('Download link'),
+    'help' => t('URL to the release download file.'),
+    'field' => array(
+      'handler' => 'views_handler_field_url',
+      'click sortable' => TRUE,
+    ),
+    'filter' => array(
+      'handler' => 'views_handler_filter',
+    ),
+  );
+
+
+  $data['project_release_supported_versions']['table']['group'] = t('Project release');
   $data['project_release_supported_versions']['nid'] = array(
     'title' => t('Project ID'),
     'help' => t('Project node ID of the supported version information.'),
@@ -53,15 +137,15 @@ function project_release_views_data() {
       'label' => t('Project node'),
     ),
   );
-  $data['project_release_supported_versions']['tid'] = array(
-    'title' => t('Supported API Compatibility term'),
-    'help' => t('The term ID of a supported API compatibility version.'),
+  $data['project_release_supported_versions']['version_api'] = array(
+    'title' => t('API version'),
+    'help' => t('The supported API version.'),
     'field' => array(
-      'handler' => 'views_handler_field_taxonomy',
+      'handler' => 'views_handler_field',
       'click sortable' => FALSE,
     ),
     'filter' => array(
-      'handler' => 'project_release_handler_filter_version_api_tid',
+      'handler' => 'project_release_handler_filter_version_api',
     ),
   );
   $data['project_release_supported_versions']['supported'] = array(
@@ -172,9 +256,31 @@ function project_release_views_data() {
  * Implements hook_views_data_alter().
  */
 function project_release_views_data_alter(&$data) {
-  // Use our custom project-argument-aware handler for version.
-  $data['field_data_field_issue_version']['field_issue_version_value']['filter']['handler'] = 'project_release_handler_filter_version';
-  $data['field_revision_field_issue_version']['field_issue_version_value']['filter']['handler'] = 'project_release_handler_filter_version';
+  $data['node']['project_releases'] = array(
+    'title' => t('Release information'),
+    'help' => t('Relate a project release to its release information.'),
+    'relationship' => array(
+      'group' => t('Project release'),
+      'label' => t('Project releases'),
+      'base' => 'project_release',
+      'base field' => 'nid',
+      'relationship field' => 'nid',
+      'handler' => 'views_handler_relationship',
+    ),
+  );
+
+  $data['node']['project_release_supported_versions'] = array(
+    'title' => t('Supported releases'),
+    'help' => t('Relate a parent project node to its currently supported releases.'),
+    'relationship' => array(
+      'group' => t('Project release'),
+      'label' => t('Project releases'),
+      'base' => 'project_release_supported_versions',
+      'base field' => 'nid',
+      'relationship field' => 'nid',
+      'handler' => 'views_handler_relationship',
+    ),
+  );
 
   // Add a relationship for information and filters about supported releases.
   $data['field_data_field_release_project']['supported_releases_rel'] = array(

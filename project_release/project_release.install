@@ -33,13 +33,6 @@ function project_release_schema() {
         'not null' => TRUE,
         'default' => 0,
       ),
-      'tag' => array(
-        'description' => 'The raw tag provided by a version control system.',
-        'type' => 'varchar',
-        'length' => 64,
-        'not null' => TRUE,
-        'default' => '',
-      ),
       'version_api' => array(
         'description' => 'The project API compatibility version. This may be blank, or a major compatibility version such as 1.x, 2.x, etc.',
         'type' => 'varchar',
@@ -153,21 +146,21 @@ function project_release_schema() {
         'default' => 0,
       ),
       'recommended_release' => array(
-        'description' => 'The release node ID of the recommended release node for this API tid and major version (the latest release without any "extra" version info such as "alpha1").',
+        'description' => 'The release node ID of the recommended release node for this API and major version (the latest release without any "extra" version info such as "alpha1").',
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
         'default' => 0,
       ),
       'latest_release' => array(
-        'description' => 'The release node ID of the latest release node for this API tid and major version (even if it has "extra" version info such as "alpha1").',
+        'description' => 'The release node ID of the latest release node for this API and major version (even if it has "extra" version info such as "alpha1").',
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
         'default' => 0,
       ),
       'latest_security_release' => array(
-        'description' => 'The release node ID of the latest release node marked as a "security update" for this API tid and major version.',
+        'description' => 'The release node ID of the latest release node marked as a "security update" for this API and major version.',
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
@@ -175,27 +168,6 @@ function project_release_schema() {
       ),
     ),
     'primary key' => array('nid', 'version_api', 'version_major'),
-  );
-
-  $schema['project_release_node_rebuild_metadata'] = array(
-    'description' => t('Tracks metadata about releases that are periodically rebuilt.'),
-    'fields' => array(
-      'nid' => array(
-        'description' => t('Foreign key: {project_release_node}.nid of the project release.'),
-        'type' => 'int',
-        'unsigned' => TRUE,
-        'not null' => TRUE,
-        'default' => 0,
-      ),
-      'rebuild_version' => array(
-        'description' => t('The current version string for this release based on the last time it was rebuilt.'),
-        'type' => 'varchar',
-        'length' => 255,
-        'not null' => TRUE,
-        'default' => '',
-      ),
-    ),
-    'primary key' => array('nid'),
   );
 
   $system_schema = system_schema();
@@ -238,6 +210,8 @@ function project_release_install() {
       'show_submitted_info' => FALSE,
       'comment_default' => COMMENT_NODE_CLOSED,
       'project_behavior' => 'project_release',
+      'project_release_version_format' => '!api#major%minor%patch#extra',
+      'project_release_api_versions' => array('1.x'),
     ),
     'base' => 'node_content',
     'module' => 'project_release',

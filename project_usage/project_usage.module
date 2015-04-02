@@ -155,7 +155,9 @@ function project_usage_flush_caches() {
  */
 function project_usage_get_project_total_usage($nid) {
   static $total = array();
-  $api_versions = config_get('project_release.settings', 'api_versions');
+  $node = node_load($nid);
+  $node_type = node_type_get_type($node);
+  $api_versions = $node_type->settings['project_release_api_versions'];
 
   if (empty($total[$nid])) {
     $total[$nid] = 0;

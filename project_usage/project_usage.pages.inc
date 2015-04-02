@@ -314,17 +314,16 @@ function project_usage_project_page($node) {
 
     // The number of columns varies depending on how many different API versions
     // are in use. Set up the header and a blank, template row, based on the
-    // number of distinct terms in use. This *could* be done with LEFT JOINs,
-    // but it ends up being a more expensive query and harder to read.
+    // number of distinct API versions in use.
     $project_header = array(0 => array('data' => t('Week')));
     $blank_row = array(0 => array('data' => ''));
-    $result = db_query("SELECT DISTINCT td.tid, td.name FROM {project_usage_week_project} p INNER JOIN {taxonomy_term_data} td ON p.tid = td.tid WHERE p.nid = :nid ORDER BY td.weight DESC, td.name", array(':nid' => $node->nid));
+    $result = db_query("SELECT DISTINCT p.version_api FROM {project_usage_week_project} p WHERE p.nid = :nid ORDER BY p.version_api", array(':nid' => $node->nid));
     foreach ($result as $row) {
-      $project_header[$row->tid] = array(
-        'data' => check_plain($row->name),
+      $project_header[$row->version_api] = array(
+        'data' => check_plain($row->version_api),
         'class' => array('project-usage-numbers'),
       );
-      $blank_row[$row->tid] = array(
+      $blank_row[$row->version_api] = array(
         'data' => 0,
         'class' => array('project-usage-numbers'),
       );
@@ -348,18 +347,18 @@ function project_usage_project_page($node) {
     }
 
     // ...then fill it in with our data.
-    $result = db_query("SELECT timestamp, tid, count FROM {project_usage_week_project} WHERE nid = :nid", array(':nid' => $node->nid));
+    $result = db_query("SELECT timestamp, version_api, count FROM {project_usage_week_project} WHERE nid = :nid", array(':nid' => $node->nid));
     foreach ($result as $row) {
-      $project_rows[$row->timestamp][$row->tid]['data'] = $row->count;
+      $project_rows[$row->timestamp][$row->version_api]['data'] = $row->count;
     }
 
     // ...and add the weekly totals across all API versions
     foreach ($project_rows as $timestamp => $row) {
       $total = 0;
-      foreach ($row as $tid => $data) {
-        if (!empty($tid) && !empty($data['data'])) {
+      foreach ($row as $version_api => $data) {
+        if (!empty($version_api) && !empty($data['data'])) {
           $total += $data['data'];
-          $project_rows[$timestamp][$tid]['data'] = number_format($data['data']);
+          $project_rows[$timestamp][$version_api]['data'] = number_format($data['data']);
         }
       }
       $project_rows[$timestamp]['total']['data'] = number_format($total);
@@ -559,15 +558,15 @@ function theme_project_usage_chart_by_release($variables) {
   $rows = array_reverse($rows);
 
   // Pull the API versions from the table header for use as a legend. Since the
-  // table is keyed strangely, make note of which tid is in which order so we
+  // table is keyed strangely, make note of the version_api order so we
   // can efficiently iterate over the columns.
   $series = array();
   $mapping = array();
-  foreach ($header as $tid => $cell) {
+  foreach ($header as $version_api => $cell) {
     $series[] = array(
       'label' => $cell['data'],
     );
-    $mapping[] = $tid;
+    $mapping[] = $version_api;
   }
   // Drop the date column from the legend and mapping since it's the other axis.
   unset($series[0]);
@@ -577,12 +576,12 @@ function theme_project_usage_chart_by_release($variables) {
   // dates for use as axis labels.
   foreach (array_values($rows) as $i => $row) {
     $timestamp = $row[0]['timestamp'];
-    foreach ($mapping as $j => $tid) {
+    foreach ($mapping as $j => $version_api) {
       // FIXME: The table values have commas in them from number_format(). We
       // need to remove them because we'll use commas to separate the values
       // in the URL string. It might be better to pass in clean number values
       // and format them here rather than have to uncook them.
-      $series[$j]['data'][] = array($timestamp * 1000, (int) str_replace(',', '', $row[$tid]['data']));
+      $series[$j]['data'][] = array($timestamp * 1000, (int) str_replace(',', '', $row[$version_api]['data']));
     }
   }
 
