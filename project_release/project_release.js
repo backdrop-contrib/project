@@ -35,18 +35,6 @@
       // Set handler for clicking checkbox to toggle a version supported/unsupported.
       $('#project-release-project-edit-form input.form-checkbox.supported', context).click(function () {
         $(this).parents('table:eq(0)').find('select').each(Drupal.projectReleaseRebuildSelect);
-
-        if (this.checked) {
-          // Marking this version as supported.
-          $(this).parents('tr:eq(0)').find('.snapshot').removeAttr('disabled');
-        } else {
-          // Marking this version as unsupported, so disable row.
-          $(this).parents('tr:eq(0)').find('.snapshot').attr('disabled', 'true').removeAttr('checked');
-        }
-      }).each(function () { // Disable unsupported versions on initial page load.
-        if (!this.checked) {
-          $(this).parents('tr:eq(0)').find('.snapshot').attr('disabled', 'true');
-        }
       });
 
       // Go ahead and remove the unavailable choices from the recommended list.

@@ -137,14 +137,6 @@ function project_release_schema() {
         'not null' => TRUE,
         'default' => 0,
       ),
-      'snapshot' => array(
-        'description' => 'A flag to indicate whether or not snapshot releases of a major version of a project should be shown in the release download table.',
-        'type' => 'int',
-        'size' => 'tiny',
-        'unsigned' => TRUE,
-        'not null' => TRUE,
-        'default' => 0,
-      ),
       'recommended_release' => array(
         'description' => 'The release node ID of the recommended release node for this API and major version (the latest release without any "extra" version info such as "alpha1").',
         'type' => 'int',

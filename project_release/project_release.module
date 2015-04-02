@@ -194,7 +194,6 @@ function project_release_check_supported_versions($pid, $version_api, $version_m
             'version_major' => $version_major,
             'supported' => 1,
             'recommended' => 0,
-            'snapshot' => 0,
             'recommended_release' => $recommended_release,
             'latest_release' => $latest_release,
             'latest_security_release' => $latest_security_release,

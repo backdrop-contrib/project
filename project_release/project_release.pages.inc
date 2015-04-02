@@ -32,7 +32,7 @@ function project_release_project_edit_form($form, $form_state, $node) {
   if ($api_versions) {
     $query->condition('psrv.version_api', $api_versions);
   }
-  $query->fields('psrv', array('version_api', 'version_major', 'snapshot', 'supported', 'recommended'));
+  $query->fields('psrv', array('version_api', 'version_major', 'supported', 'recommended'));
   $query->fields('p', array('name'));
   $query->orderBy('psrv.version_api');
   $query->orderBy('psrv.version_major');
@@ -46,7 +46,6 @@ function project_release_project_edit_form($form, $form_state, $node) {
       );
     }
     $data[$object->version_api]['majors'][$object->version_major] = array(
-      '#snapshot' => $object->snapshot ? TRUE : FALSE,
       '#supported' => $object->supported ? TRUE : FALSE,
       '#recommended' => $object->recommended ? TRUE : FALSE,
     );
@@ -59,7 +58,7 @@ function project_release_project_edit_form($form, $form_state, $node) {
   else {
     if (!empty($api_versions)) {
       $form['help'] = array(
-        '#markup' => '<p>' . t('This page allows you to define which major versions are supported within this project. You can also control if the development snapshot releases should be displayed on the front page of the project. Finally, you can select which major version (if any) should be recommended for new users to download.') . '</p>',
+        '#markup' => '<p>' . t('This page allows you to define which major versions are supported within this project and select which major version (if any) should be recommended for new users to download.') . '</p>',
       );
     }
     // Build the form elements for supported and recommended major versions.
@@ -89,12 +88,6 @@ function project_release_project_edit_form($form, $form_state, $node) {
             '#title' => t('Supported'),
             '#default_value' => $major_data['#supported'],
             '#attributes' => array('class' => array('supported')),
-          ),
-          'snapshot' => array(
-            '#type' => 'checkbox',
-            '#title' => t('Show snapshot release'),
-            '#default_value' => $major_data['#snapshot'],
-            '#attributes' => array('class' => array('snapshot')),
           ),
         );
       }
@@ -127,10 +120,6 @@ function theme_project_release_edit_table($variables) {
     t('Major version'),
     t('Current Release'),
     t('Supported'),
-    array(
-      'data' => t('Show snapshot release'),
-      'colspan' => 2,
-    ),
   );
   foreach (element_children($element) as $version_api) {
     $output .= '<h3>'. check_plain($version_api) .'</h3>';
@@ -144,8 +133,6 @@ function theme_project_release_edit_table($variables) {
       // table headers to label each column.
       unset($element[$version_api]['version_major'][$version_major]['supported']['#title']);
       $row[] = backdrop_render($element[$version_api]['version_major'][$version_major]['supported']);
-      unset($element[$version_api]['version_major'][$version_major]['snapshot']['#title']);
-      $row[] = backdrop_render($element[$version_api]['version_major'][$version_major]['snapshot']);
       $rows[] = $row;
     }
     // Finally, add a row for the currently recommended version.
@@ -173,9 +160,6 @@ function project_release_project_edit_form_validate($form, &$form_state) {
       // First, we just iterate through to see if *any* majors are supported.
       foreach ($api_info['version_major'] as $version_major => $flags) {
         // At least 1 major is supported, so validate the settings.
-        if ($flags['supported'] == FALSE && $flags['snapshot'] == TRUE) {
-          form_error($form['version_api'][$version_api]['version_major'][$version_major]['snapshot'], t('You can not show a snapshot release for a major version that is not supported for %version_api.', array('%version_api' => $version_api)));
-        }
         if ($flags['supported'] == FALSE && $api_info['recommended'] == $version_major) {
           form_error($form['version_api'][$version_api]['recommended'], t('You can not recommend a major version that is not supported for %version_api.', array('%version_api' => $version_api)));
         }
@@ -200,7 +184,7 @@ function project_release_project_edit_form_submit($form, &$form_state) {
         foreach ($values['version_major'] as $version_major => $major_values) {
           $major_values['recommended'] = ($values['recommended'] == $version_major) ? 1 : 0;
           $existing = db_select('project_release_supported_versions', 'psrv')
-            ->fields('psrv', array('supported', 'recommended', 'snapshot'))
+            ->fields('psrv', array('supported', 'recommended'))
             ->condition('nid', $nid)
             ->condition('version_api', $version_api)
             ->condition('version_major', $version_major)
@@ -225,7 +209,6 @@ function project_release_project_edit_form_submit($form, &$form_state) {
                 'version_major' => $version_major,
                 'supported' => $major_values['supported'],
                 'recommended' => $major_values['recommended'],
-                'snapshot' => $major_values['snapshot'],
               ))
               ->execute();
             $updates[] = array('version_api' => $version_api, 'version_major' => $version_major);

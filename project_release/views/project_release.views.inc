@@ -172,18 +172,6 @@ function project_release_views_data() {
       'type' => 'yes-no',
     ),
   );
-  $data['project_release_supported_versions']['snapshot'] = array(
-    'title' => t('Show snapshot'),
-    'help' => t('Show development snapshot releases from a branch.'),
-    'field' => array(
-      'handler' => 'views_handler_field_boolean',
-      'click sortable' => TRUE,
-    ),
-    'filter' => array(
-      'handler' => 'views_handler_filter_boolean_operator',
-      'type' => 'yes-no',
-    ),
-  );
   $data['project_release_supported_versions']['recommended_release'] = array(
     'title' => t('Recommended release'),
     'help' => t('The recommended release from a specific branch of a project.'),
