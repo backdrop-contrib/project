@@ -54,6 +54,10 @@ function project_release_menu() {
     'file' => 'project_release.pages.inc',
   );
 
+  $items['node/%project/releases'] = array(
+    // This menu item is provided by the "project_releases_by_project" view.
+  );
+
   // Various links to create a new release.
   $node_types = project_release_release_node_types();
   foreach ($node_types as $node_type_name) {
@@ -179,7 +183,7 @@ function project_release_check_supported_versions($pid, $version_api, $version_m
       $num_branches = 0;
       foreach ($query->execute() as $branch) {
         $num_branches++;
-        if ($branch->major == $version_major) {
+        if ($branch->version_major == $version_major) {
           $have_current_branch = TRUE;
           break;
         }
@@ -490,7 +494,12 @@ function project_release_node_load($nodes, $types) {
     if (project_release_node_is_release($node)) {
       $project_release_nids[] = $node->nid;
     }
+    if (project_node_is_project($node)) {
+      $project_nids[] = $node->nid;
+    }
   }
+
+  // Project release data.
   if ($project_release_nids) {
     $result = db_select('project_release', 'pr')
       ->fields('pr')
@@ -640,31 +649,13 @@ function project_release_node_delete($node) {
 function project_release_node_view($node, $view_mode, $langcode) {
   if (project_node_is_project($node)) {
     if (!empty($node->project['releases_enabled']) && $view_mode !== 'rss' && $view_mode !== 'search_index') {
-      // Add releases table and links.
       $node->content['project_release_downloads'] = array(
         '#prefix' => '<h3>' . t('Downloads') . '</h3>',
         '#weight' => 10,
         'table' => array(
           '#markup' => project_release_download_table($node->nid),
         ),
-        'links' => array(
-          '#theme' => 'links',
-          '#links' => array(
-            'view_all_releases' => array('title' => t('View all releases'), 'href' => 'node/' . $node->nid . '/releases'),
-          ),
-        ),
       );
-      if (project_user_access($node->nid, 'administer releases')) {
-        $types = project_release_release_node_types();
-        // todo this uses the first release node type. What to do if there are
-        // multiple?
-        $node->content['project_release_downloads']['links']['#links']['add_new_release'] = array(
-          'title' => t('Add new release'), 'href' => 'node/add/' . str_replace('_', '-', reset($types)) . '/' . $node->nid,
-        );
-        $node->content['project_release_downloads']['links']['#links']['administer_releases'] = array(
-          'title' => t('Administer releases'), 'href' => 'node/' . $node->nid . '/edit/releases',
-        );
-      }
     }
   }
   elseif (project_release_node_is_release($node)) {
@@ -678,6 +669,25 @@ function project_release_node_view($node, $view_mode, $langcode) {
     if (isset($node->content['body'])) {
       $node->content['body']['#prefix'] = '<h3>' . t('Release notes') . '</h3>';
     }
+
+    $url = $node->project_release['download_link'];
+    $extension = substr($url, strpos($url, '.') + 1);
+    $node->content['project_download_link'] = array(
+      '#type' => 'markup',
+      '#title' => t('Download'),
+      '#markup' => l($node->project_release['version'] . ' (' . $extension . ')', $node->project_release['download_link']),
+      '#theme_wrappers' => array('form_element'),
+      '#access' => !empty($url),
+    );
+
+    $node->content['project_release_link'] = array(
+      '#type' => 'markup',
+      '#title' => t('Release notes'),
+      '#markup' => l($node->project_release['release_link'], $node->project_release['release_link']),
+      '#theme_wrappers' => array('form_element'),
+      '#access' => !empty($node->project_release['release_link']),
+    );
+
 
     // Replace files with a view.
     //list($view_name, $display_name) = explode(':', variable_get('project_release_files_view', 'project_release_files:default'));
@@ -933,7 +943,7 @@ function project_release_parse_version_extra($version_extra) {
  */
 function project_release_download_table($pid, $_clear = FALSE) {
   if ($_clear || ($cache = cache_get($pid, 'cache_project_release_download_table')) === FALSE) {
-    $output = views_embed_view('project_release_download_table', 'recommended', $pid);
+    $output = views_embed_view('project_release_download_table', 'block', $pid);
     cache_set($pid, $output, 'cache_project_release_download_table');
     return $output;
   }
@@ -1301,9 +1311,9 @@ function project_release_node_type_is_release($node_type_name) {
 function project_release_release_node_types() {
   $release_node_types = array();
   $node_types = node_type_get_types();
-  foreach ($node_types as $type) {
-    if (project_release_node_type_is_release($type->type)) {
-      $release_node_types[] = $type->type;
+  foreach ($node_types as $node_type) {
+    if ($node_type->settings['project_behavior'] === 'project_release') {
+      $release_node_types[] = $node_type->type;
     }
   }
   return $release_node_types;

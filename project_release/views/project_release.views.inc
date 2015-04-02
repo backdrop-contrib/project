@@ -15,6 +15,17 @@ function project_release_views_data() {
 
   $data['project_release']['table']['group'] = t('Project release');
 
+  $data['project_release']['version'] = array(
+    'title' => t('Version'),
+    'help' => t('The full version number for the release.'),
+    'field' => array(
+      'handler' => 'views_handler_field',
+      'click sortable' => FALSE,
+    ),
+    'filter' => array(
+      'handler' => 'views_handler_filter',
+    ),
+  );
   $data['project_release']['project_nid'] = array(
     'title' => t('Project node'),
     'help' => t('Relate a project release to its parent project.'),

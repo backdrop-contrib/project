@@ -542,6 +542,7 @@ function project_form_node_form_alter(&$form, &$form_state) {
         'source' => array('title'),
       ),
       '#element_validate' => array('project_validate_project_shortname'),
+      '#project_nid' => $node->nid,
       '#default_value' => $node->project['name'],
     );
     $form['project']['sandbox'] = array(
@@ -565,6 +566,7 @@ function project_form_node_form_alter(&$form, &$form_state) {
 function project_validate_project_shortname($element, &$form_state, $form) {
   if (!empty($element['#value'])) {
     $is_sandbox = !empty($form_state['values']['project']['sandbox']);
+    $nid = $form_state['node']->nid;
 
     // Make sure machine name isn't already in use, or reserved.  Includes all
     // X from project/issues/X paths used in project_issues module
@@ -574,7 +576,7 @@ function project_validate_project_shortname($element, &$form_state, $form) {
     }
 
     $existing_nid = project_get_nid_from_machine_name($element['#value']);
-    if (!$is_sandbox && !empty($existing_nid) && $element['#value'] !== $element['#default_value']) {
+    if (!$is_sandbox && !empty($existing_nid) && $existing_nid !== $nid) {
       form_error($element, t('This project name is already in use.'));
     }
     if (config_get('project.settings', 'require_lowercase_machine_name') && $element['#value'] != backdrop_strtolower($element['#value'])) {
