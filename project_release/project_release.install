@@ -90,6 +90,11 @@ function project_release_schema() {
         'description' => 'URL to the release download archive.',
         'type' => 'text',
       ),
+      'download_size' => array(
+        'description' => 'The size of the download archive, in bytes.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+      ),
     ),
     'primary key' => array('nid', 'tag'),
     'indexes' => array(
@@ -172,7 +177,7 @@ function project_release_schema() {
 /**
  * Implements hook_schema_alter().
  */
-function project_schema_alter(&$schema) {
+function project_release_schema_alter(&$schema) {
   $schema['project']['fields']['releases_enabled'] = array(
     'type' => 'int',
     'size' => 'tiny',

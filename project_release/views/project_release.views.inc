@@ -6,7 +6,7 @@
  */
 
 /**
- * Implementation of hook_views_data().
+ * Implements hook_views_data().
  *
  * Exposes all fields to the views system.
  */
@@ -124,6 +124,17 @@ function project_release_views_data() {
     ),
     'filter' => array(
       'handler' => 'views_handler_filter',
+    ),
+  );
+  $data['project_release']['download_size'] = array(
+    'title' => t('Download size'),
+    'help' => t('File size of the release download file.'),
+    'field' => array(
+      'handler' => 'views_handler_field_file_size',
+      'click sortable' => TRUE,
+    ),
+    'filter' => array(
+      'handler' => 'views_handler_filter_numeric',
     ),
   );
 

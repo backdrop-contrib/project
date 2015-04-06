@@ -536,7 +536,7 @@ function project_form_node_form_alter(&$form, &$form_state) {
       '#type' => 'markup',
       '#tree' => TRUE,
     );
-    $form['project']['name'] = array(
+    $form['project_name'] = array(
       '#type' => 'machine_name',
       '#machine_name' => array(
         'source' => array('title'),
@@ -544,8 +544,10 @@ function project_form_node_form_alter(&$form, &$form_state) {
       '#element_validate' => array('project_validate_project_shortname'),
       '#project_nid' => $node->nid,
       '#default_value' => $node->project['name'],
+      '#parents' => array('project', 'name'),
+      '#weight' => -4,
     );
-    $form['project']['sandbox'] = array(
+    $form['project_sandbox'] = array(
       '#type' => 'radios',
       '#title' => t('Project type'),
       '#options' => array(
@@ -554,6 +556,8 @@ function project_form_node_form_alter(&$form, &$form_state) {
       ),
       '#description' => t('Official projects have unique, canonical project names. Multiple sandbox projects are allowed to share the same name.'),
       '#default_value' => $node->project['sandbox'],
+      '#parents' => array('project', 'sandbox'),
+      '#weight' => -2,
     );
 
     project_project_set_breadcrumb($node);
@@ -583,6 +587,33 @@ function project_validate_project_shortname($element, &$form_state, $form) {
       form_error($element, t('Please use lowercase for the project short name.'));
     }
   }
+}
+
+/**
+ * Implements hook_field_extra_fields().
+ */
+function project_field_extra_fields() {
+  $form_additions = array(
+    'project_name' => array(
+      'label' => t('Project name'),
+      'description' => t('Machine-readable name'),
+      'weight' => -4,
+    ),
+    'project_sandbox' => array(
+      'label' => t('Project sandbox toggle'),
+      'description' => t('Radios'),
+      'weight' => -2,
+    ),
+  );
+
+  $types = project_project_node_types();
+  foreach ($types as $type_name) {
+    $extra['node'][$type_name] = array(
+      'form' => $form_additions,
+    );
+  }
+
+  return $extra;
 }
 
 /**

@@ -14,7 +14,7 @@ define('PROJECT_RELEASE_UPDATE_STATUS_NOT_SECURE', 'not-secure');
  */
 
 /**
- * Implementation of hook_init().
+ * Implements hook_init().
  */
 function project_release_init() {
   // These constants are defined here since they use t() and the global $locale
@@ -38,7 +38,7 @@ function project_release_init() {
 }
 
 /**
- * Implementation of hook_menu().
+ * Implements hook_menu().
  * @ingroup project_release_core
  */
 function project_release_menu() {
@@ -79,7 +79,7 @@ function project_release_menu() {
 }
 
 /**
- * Implementation of hook_menu_alter().
+ * Implements hook_menu_alter().
  */
 function project_release_menu_alter(&$callbacks) {
   foreach (project_release_release_node_types() as $release_type) {
@@ -396,11 +396,13 @@ function project_release_compute_update_status_multiple($pid, $updates) {
 function project_release_form_node_form_alter(&$form, &$form_state) {
   $node = $form_state['node'];
   if (project_node_is_project($node)) {
-    $form['project']['releases_enabled'] = array(
+    $form['project_releases_enabled'] = array(
       '#type' => 'checkbox',
       '#title' => t('Enable releases'),
       '#description' => t('Projects that have releases may add versioned, downloadable files attached to them.'),
       '#default_value' => $node->project['releases_enabled'],
+      '#parents' => array('project', 'releases_enabled'),
+      '#weight' => -1,
     );
   }
   if (project_release_node_is_release($node)) {
@@ -444,12 +446,14 @@ function project_release_form_node_form_alter(&$form, &$form_state) {
       '#default_value' => $node->project_release['version'],
       '#description' => $version_description,
       '#disabled' => !empty($node->nid),
+      '#required' => TRUE,
     );
     $form['project_release']['version_api'] = array(
       '#type' => 'select',
       '#title' => t('API Version'),
       '#options' => backdrop_map_assoc($api_versions),
       '#access' => !empty($api_versions),
+      '#required' => TRUE,
     );
 
     // Disable and hard-code the current values if not creating a new node.
@@ -470,19 +474,42 @@ function project_release_form_node_form_alter(&$form, &$form_state) {
       '#default_value' => $node->project_release['security_update'],
       '#description' => t('If marked as a security release, administrators may be notified that they must update their project.'),
     );
+    $form['project_release']['download_link'] = array(
+      '#type' => 'url',
+      '#title' => t('Download link'),
+      '#default_value' => $node->project_release['download_link'],
+      '#description' => t('The URL to an archive containing this release.'),
+      '#required' => TRUE,
+    );
     $form['project_release']['release_link'] = array(
       '#type' => 'url',
       '#title' => t('Release link'),
       '#default_value' => $node->project_release['release_link'],
       '#description' => t('The URL to the release notes for this release.'),
     );
-    $form['project_release']['download_link'] = array(
-      '#type' => 'url',
-      '#title' => t('Download link'),
-      '#default_value' => $node->project_release['download_link'],
-      '#description' => t('The URL to an archive containing this release.'),
+  }
+}
+
+/**
+ * Implements hook_field_extra_fields().
+ */
+function project_release_field_extra_fields() {
+  $project_form_additions = array(
+    'project_releases_enabled' => array(
+      'label' => t('Project releases enabled'),
+      'description' => t('Checkbox'),
+      'weight' => -4,
+    ),
+  );
+
+  $types = project_project_node_types();
+  foreach ($types as $type_name) {
+    $extra['node'][$type_name] = array(
+      'form' => $project_form_additions,
     );
   }
+
+  return $extra;
 }
 
 /**
@@ -556,7 +583,6 @@ function project_release_node_validate(&$node, $form, &$form_state) {
     }
 
     // Validate version.
-    dsm($node->project_release['version']);
     if (!empty($node->project_release['version'])) {
       if (project_release_parse_version($node) === FALSE) {
         form_error($form['project_release']['version'], t('Version does not match the required format.'));
@@ -574,7 +600,7 @@ function project_release_node_validate(&$node, $form, &$form_state) {
 function project_release_node_presave($node) {
   if (project_release_node_is_release($node)) {
     // For new release nodes,
-    if (empty($node->nid)) {
+    if (!isset($node->project_release['project_nid']) && empty($node->nid)) {
       // Set project using the menu-loaded node.
       $project = menu_get_object('project', 3);
       $node->project_release['project_nid'] = $project->nid;
@@ -671,11 +697,18 @@ function project_release_node_view($node, $view_mode, $langcode) {
     }
 
     $url = $node->project_release['download_link'];
-    $extension = substr($url, strpos($url, '.') + 1);
+
+    $extra = '';
+    $size = $node->project_release['download_size'];
+    if ($size) {
+      $size = format_size($size);
+      $extra .= ' (' . $size . ')';
+    }
+
     $node->content['project_download_link'] = array(
       '#type' => 'markup',
       '#title' => t('Download'),
-      '#markup' => l($node->project_release['version'] . ' (' . $extension . ')', $node->project_release['download_link']),
+      '#markup' => l($node->project_release['version'], $node->project_release['download_link']) . $extra,
       '#theme_wrappers' => array('form_element'),
       '#access' => !empty($url),
     );
@@ -1191,7 +1224,7 @@ function project_release_exists($project_nid, $version) {
 }
 
 /**
- * Implementation of hook_theme().
+ * Implements hook_theme().
  */
 function project_release_theme() {
   return array(
@@ -1203,12 +1236,21 @@ function project_release_theme() {
 }
 
 /**
- * Implementation of hook_views_api().
+ * Implements hook_views_api().
  */
 function project_release_views_api() {
   return array(
     'api' => '3.0',
     'path' => backdrop_get_path('module', 'project_release') . '/views',
+  );
+}
+
+/**
+ * Implements hook_flush_caches().
+ */
+function project_release_flush_caches() {
+  return array(
+    'release_download_table',
   );
 }
 
@@ -1346,11 +1388,6 @@ function project_release_project_behavior_settings($node_type) {
     '#description' => PROJECT_RELEASE_VERSION_FORMAT_HELP,
     '#element_validate' => array('_project_release_validate_format_string'),
     '#pre_render' => array('_project_release_version_string_pre_render'),
-    '#states' => array(
-      'invisible' => array(
-        ':input[name="project_behavior"]' => array('!value' => 'project_release'),
-      ),
-    ),
     '#parents' => array('project_release_version_format'),
   );
 

@@ -1,0 +1,127 @@
+<?php
+/**
+ * @file
+ * Provides integration between Project module and GitHub.
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function project_github_menu() {
+  // Each webhook callback should uses "project_github_listener_callback" as the
+  // page callback, then pass in the name of the action-specific callback as
+  // the first page argument. This approach is similar to the common pattern
+  // of the page callback being "backdrop_get_form" and the page arguments
+  // being the form callback name.
+  $items['project/github/release'] = array(
+    'page callback' => 'project_github_listener_callback',
+    'page arguments' => array('_project_github_handle_release', array('release')),
+    'access callback' => 'project_github_listener_access',
+    'file' => 'project_github.pages.inc',
+    'type' => MENU_CALLBACK,
+  );
+  $items['project/github/push'] = array(
+    'page callback' => 'project_github_listener_callback',
+    'page arguments' => array('_project_github_handle_push', array('push')),
+    'access callback' => 'project_github_listener_access',
+    'file' => 'project_github.pages.inc',
+    'type' => MENU_CALLBACK,
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter() for release node forms.
+ */
+function project_github_form_node_form_alter(&$form, &$form_state) {
+  $node = $form_state['node'];
+  if (project_node_is_project($node)) {
+    $form['project_github_path'] = array(
+      '#type' => 'textfield',
+      '#title' => t('GitHub path'),
+      '#field_prefix' => 'https://github.com/',
+      '#description' => t('The path is generally [owner]/[repo_name]. e.g. "backdrop-contrib/webform".'),
+      '#default_value' => $node->project['github_path'],
+      '#size' => 30,
+      '#parents' => array('project', 'github_path'),
+      '#weight' => -3,
+    );
+    $form['project_github_sync_readme'] = array(
+      '#type' => 'radios',
+      '#title' => t('Project description'),
+      '#options' => array(
+        0 => t('Custom description'),
+        1 => t('Sync from GitHub README'),
+      ),
+      '#description' => t('If syncing from GitHub, the README md or txt file will be read from the default branch of the project. This value will be saved in the "body" field.'),
+      '#default_value' => $node->project['github_sync_readme'],
+      '#access' => isset($form['field_body']),
+      '#parents' => array('project', 'github_sync_readme'),
+      '#weight' => -1,
+      '#states' => array(
+        'invisible' => array(
+          '[name="project[github_path]"]' => array('value' => ''),
+        ),
+      ),
+    );
+    // Disable the body field if README syncing is enabled.
+    if (isset($form['field_body'])) {
+      $form['field_body'][LANGUAGE_NONE][0] += array(
+        '#states' => array(
+          'disabled' => array(
+            '[name="project[github_sync_readme]"]' => array('!value' => '0'),
+            '[name="project[github_path]"]' => array('!value' => ''),
+          ),
+        ),
+      );
+    }
+  }
+}
+
+/**
+ * Implements hook_field_extra_fields().
+ */
+function project_github_field_extra_fields() {
+  $form_additions = array(
+    'project_github_path' => array(
+      'label' => t('GitHub path'),
+      'description' => t('Textfield'),
+      'weight' => -3,
+    ),
+    'project_github_sync_readme' => array(
+      'label' => t('Sync README with GitHub'),
+      'description' => t('Radios'),
+      'weight' => -1,
+    ),
+  );
+
+  $types = project_project_node_types();
+  foreach ($types as $type_name) {
+    $extra['node'][$type_name] = array(
+      'form' => $form_additions,
+    );
+  }
+
+  return $extra;
+}
+
+/**
+ * Implements hook_node_prepare().
+ */
+function project_github_node_prepare(Node $node) {
+  if (project_node_is_project($node)) {
+    // Set default project values.
+    $node->project += array(
+      'github_path' => 1,
+      'github_sync_readme' => 0,
+    );
+  }
+}
+
+/**
+ * Load a project node based on its GitHub path.
+ */
+function project_github_load_project($github_path) {
+  $nid = db_query("SELECT nid FROM {project} WHERE github_path = :path", array(':path' => $github_path))->fetchField();
+  return $nid ? node_load($nid) : FALSE;
+}

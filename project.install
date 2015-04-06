@@ -29,6 +29,7 @@ function project_install() {
     'is_new' => TRUE,
   );
   $api_type = node_type_set_defaults($node_type);
+  node_add_body_field($api_type, st('Description'));
   node_type_save($api_type);
 }
 
