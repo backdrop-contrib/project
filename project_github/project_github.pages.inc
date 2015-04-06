@@ -432,3 +432,75 @@ function _project_github_handle_push(array &$errors, array $payload) {
   return $result;
 }
 
+/**
+ * Given a push event, update the project README.
+ *
+ * @param array $errors
+ *   An empty array that should be populated with any error information that
+ *   occurs during the request.
+ * @param array $payload
+ *   The GitHub webhook payload.
+ * @return bool
+ *   TRUE if the package is modified and uploaded successfully. FALSE otherwise.
+ */
+function _project_github_update_readme(array &$errors, array $payload) {
+  $success = TRUE;
+
+  // Check if we even have a project that matches for making a release.
+  $project_node = project_github_load_project($payload['repository']['full_name']);
+  if (!$project_node || empty($project_node->project['github_sync_readme'])) {
+    return $success;
+  }
+
+  if (project_github_update_readme($project_node)) {
+    $project_node->save();
+    $success = TRUE;
+  }
+  else {
+    $success = FALSE;
+  }
+
+  return $success;
+}
+
+/**
+ * Update a project node's README from GitHub.
+ *
+ * @param Node $node
+ *   The project node whose README will be updated. Modified by reference.
+ * @return bool
+ *   TRUE if the node has been modified with the updated README.
+ */
+function project_github_update_readme(Node &$node) {
+  // GitHub doesn't provide a URL for the README, though it is documented under
+  // the "contents" API. See https://developer.github.com/v3/repos/contents/
+  $readme_url = 'https://api.github.com/repos/' . $node->project['github_path'] . '/readme';
+
+  $options = array(
+    'headers' => array(
+      'Accept' => 'application/vnd.github.v3.html',
+    ),
+  );
+  $readme_result = backdrop_http_request($readme_url, $options);
+  if ((int) $readme_result->code === 200) {
+    $readme = $readme_result->data;
+    // Remove the wrapping div tag (the only one in the README).
+    $readme = preg_replace('/(<div[^>]*?>)/ms', '', $readme);
+    $readme = str_replace('</div>', '', $readme);
+    // Remove the wrapping article tag.
+    $readme = preg_replace('/(<article[^>]*?>)/ms', '', $readme);
+    $readme = str_replace('</article>', '', $readme);
+    // Remove empty GitHub placeholder anchor tags.
+    $readme = preg_replace('/(<span[^>]*?>)(<\/span>)/ms', '', $readme);
+    $readme = preg_replace('/(<a[^>]*?>)(<\/a>)/ms', '', $readme);
+    // Remove H1 headlines, which should only be the project name.
+    $readme = preg_replace('/(<h1[^>]*>)(.*)?(<\/h1>)/ms', '', $readme);
+
+    // Trim newlines.
+    $readme = trim($readme);
+
+    $node->field_body[LANGUAGE_NONE][0]['value'] = $readme;
+    return TRUE;
+  }
+  return FALSE;
+}

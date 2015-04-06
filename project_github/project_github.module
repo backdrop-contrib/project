@@ -119,6 +119,16 @@ function project_github_node_prepare(Node $node) {
 }
 
 /**
+ * Implements hook_node_insert().
+ */
+function project_github_node_presave(Node $node) {
+  if (project_node_is_project($node) && $node->project['github_sync_readme']) {
+    module_load_include('inc', 'project_github', 'project_github.pages');
+    project_github_update_readme($node);
+  }
+}
+
+/**
  * Load a project node based on its GitHub path.
  */
 function project_github_load_project($github_path) {

@@ -1250,7 +1250,7 @@ function project_release_views_api() {
  */
 function project_release_flush_caches() {
   return array(
-    'release_download_table',
+    'project_release_download_table',
   );
 }
 
