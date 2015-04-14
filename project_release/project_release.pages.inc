@@ -12,6 +12,15 @@ function project_release_add_node_redirect($project_node, $release_type) {
 }
 
 /**
+ * Access callback; Check if the link for creating a release should be shown.
+ */
+function project_release_add_node_access($project_node, $release_type) {
+  $project_node_type = node_type_get_type($project_node);
+  $release_type_matches = $release_type === $project_node_type->settings['project_release_type'];
+  return $release_type_matches && node_access('create', $release_type);
+}
+
+/**
  * Releases subtab for the project edit tab.
  */
 function project_release_project_edit_releases($node) {
@@ -21,7 +30,7 @@ function project_release_project_edit_releases($node) {
 }
 
 function project_release_project_edit_form($form, $form_state, $node) {
-  $api_versions = project_release_get_api_versions();
+  $api_versions = project_release_get_api_versions($node->type);
   // Since this form is used relatively infrequently, don't allow the js to be aggregated.
   backdrop_add_js(backdrop_get_path('module', 'project_release') . '/project_release.js', array('preprocess' => FALSE));
 
@@ -230,5 +239,4 @@ function project_release_project_edit_form_submit($form, &$form_state) {
   if (!empty($updates)) {
     backdrop_register_shutdown_function('project_release_compute_update_status_multiple', $nid, $updates);
   }
-
 }

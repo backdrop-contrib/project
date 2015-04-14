@@ -14,7 +14,7 @@
  */
 function _project_usage_help($key) {
   if (empty($key)) {
-    return '<p>' . t('This page summarizes the usage of all projects on @site_name. For each week beginning on the given date the figures show the number of sites that reported they are using (any version of) the project. Detailed usage information for each release of a project is available by clicking the project name.', array('@site_name' => variable_get('site_name', t('this site')))) . '</p>';
+    return '<p>' . t('This page summarizes the usage of all projects on @site_name. For each week beginning on the given date the figures show the number of sites that reported they are using (any version of) the project. Detailed usage information for each release of a project is available by clicking the project name.', array('@site_name' => config_get('system.core', 'site_name'))) . '</p>';
   }
   elseif (is_numeric($key)) {
     $node = node_load($key);
@@ -343,7 +343,7 @@ function project_usage_project_page($node) {
     foreach ($weeks as $week) {
       $project_rows[$week] = $blank_row;
       $project_rows[$week][0]['timestamp'] = $week;
-      $project_rows[$week][0]['data'] = format_date($week, 'custom', variable_get('project_usage_date_long', PROJECT_USAGE_DATE_LONG));
+      $project_rows[$week][0]['data'] = format_date($week, 'custom', PROJECT_USAGE_DATE_LONG);
     }
 
     // ...then fill it in with our data.
@@ -399,7 +399,7 @@ function project_usage_release_page($node) {
     foreach ($query as $row) {
       $rows[] = array(
         array(
-          'data' => format_date($row->timestamp, 'custom', variable_get('project_usage_date_long', PROJECT_USAGE_DATE_LONG)),
+          'data' => format_date($row->timestamp, 'custom', PROJECT_USAGE_DATE_LONG),
           'timestamp' => $row->timestamp,
         ),
         array(

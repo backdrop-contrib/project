@@ -211,6 +211,15 @@ function project_views_api() {
 }
 
 /**
+ * Implements hook_autoload_info().
+ */
+function project_autoload_info() {
+  return array(
+    'project_plugin_argument_validate' => 'views/project_plugin_argument_validate.inc',
+  );
+}
+
+/**
  * Implements hook_node_view().
  */
 function project_node_view($node, $view_mode, $langcode) {
@@ -283,16 +292,10 @@ function project_node_validate($node, $form, &$form_state) {
   }
 
   // Ensure title is unique across all projects.
-  $query = db_select('node', 'n')
-    ->fields('n', array('nid'))
-    ->condition('n.type', project_project_node_types())
-    ->condition('n.title', $node->title);
-  if ($node->nid) {
-    $query->condition('n.nid', $node->nid, '!=');
-  }
-  $result = $query->execute()->fetchField();
-  if ($result) {
-    form_set_error('title', t('This project name is already in use.'));
+  $errors = array();
+  project_validate_project_title($node, $errors);
+  foreach ($errors as $error) {
+    form_set_error('title', $error);
   }
 }
 
@@ -318,6 +321,15 @@ function project_node_update(Node $node) {
 }
 
 /**
+ * Implements hook_node_delete().
+ */
+function project_node_delete(Node $node) {
+  if (project_node_is_project($node)) {
+    db_query("DELETE FROM {project} WHERE nid = :nid", array(':nid' => $node->nid));
+  }
+}
+
+/**
  * Implements hook_node_access().
  */
 function project_node_access($node, $op, $account) {
@@ -326,33 +338,6 @@ function project_node_access($node, $op, $account) {
     if ($op != 'create') {
       return (project_user_access($node, $op . ' project', $account)) ? NODE_ACCESS_ALLOW : NODE_ACCESS_IGNORE;
     }
-  }
-}
-
-/**
- * Implements hook_node_delete().
- */
-function project_node_delete($node) {
-  if (project_node_is_project($node)) {
-    db_query("DELETE FROM {project_maintainer} WHERE nid = :nid", array(':nid' => $node->nid));
-  }
-}
-
-/**
- * Implements hook_user_cancel().
- */
-function project_user_cancel($edit, $account, $method) {
-  // Maintainership isn't content and should be deleted.
-  project_user_delete($account);
-}
-
-/**
- * Implements hook_user_delete().
- */
-function project_user_delete($account) {
-  // Delete project maintainerships.
-  foreach (db_query('SELECT nid FROM {project_maintainer} WHERE uid = :uid', array('uid' => $account->uid))->fetchCol() as $nid) {
-    project_maintainer_remove($nid, $account->uid);
   }
 }
 
@@ -444,7 +429,7 @@ function project_node_type_load(&$types) {
  * @see hook_project_behavior_info()
  * @see node_type_form_submit()
  */
-function project_form_node_type_form_alter(&$form) {
+function project_form_node_type_form_alter(&$form, $form_state) {
   $node_type = $form['#node_type'];
   $project_behavior = $node_type->settings['project_behavior'];
 
@@ -465,23 +450,27 @@ function project_form_node_type_form_alter(&$form) {
 
   $project_behaviors = project_get_behavior_info();
   $project_behavior_choices = array();
-  foreach ($project_behaviors as $module => $behavior_info) {
+  foreach ($project_behaviors as $behavior_info) {
     $machine_name = $behavior_info['machine name'];
     $project_behavior_choices[$machine_name] = $behavior_info['label'];
     if (!empty($behavior_info['settings callback'])) {
       $form_elements = $behavior_info['settings callback']($node_type);
-      foreach (element_children($form_elements) as $key) {
-        // The form elements might define their own #states, so don't just
-        // clobber it, but merge in our visibility state carefully.
-        $visible = array(
-          ':input[name="project_behavior"]' => array('value' => $machine_name),
-        );
-        if (!empty($form_elements[$key]['#states']['visible'])) {
-          $visible = array_merge($form_elements[$key]['#states']['visible'], $visible);
-        }
-        $form_elements[$key]['#states']['visible'] = $visible;
-        $form['project'][$machine_name][$key] = $form_elements[$key];
+    }
+    else {
+      $form_elements = array();
+    }
+    backdrop_alter('project_behavior_settings', $form_elements, $node_type, $behavior_info);
+    foreach (element_children($form_elements) as $key) {
+      // The form elements might define their own #states, so don't just
+      // clobber it, but merge in our visibility state carefully.
+      $visible = array(
+        ':input[name="project_behavior"]' => array('value' => $machine_name),
+      );
+      if (!empty($form_elements[$key]['#states']['visible'])) {
+        $visible = array_merge($form_elements[$key]['#states']['visible'], $visible);
       }
+      $form_elements[$key]['#states']['visible'] = $visible;
+      $form['project'][$machine_name][$key] = $form_elements[$key];
     }
   }
 
@@ -498,6 +487,7 @@ function project_get_behavior_info() {
       'none' => array(
         'label' => t('No project behavior'),
         'machine name' => 'none',
+        'module' => 'none',
       ),
     );
     // @todo: This is stupid. We want something like module_collate_info().
@@ -505,6 +495,7 @@ function project_get_behavior_info() {
     foreach (module_implements('project_behavior_info') as $module) {
       $function = "{$module}_project_behavior_info";
       $project_behaviors[$module] = $function();
+      $project_behaviors[$module]['module'] = $module;
     }
   }
   return $project_behaviors;
@@ -541,7 +532,7 @@ function project_form_node_form_alter(&$form, &$form_state) {
       '#machine_name' => array(
         'source' => array('title'),
       ),
-      '#element_validate' => array('project_validate_project_shortname'),
+      '#element_validate' => array('project_validate_project_shortname_element'),
       '#project_nid' => $node->nid,
       '#default_value' => $node->project['name'],
       '#parents' => array('project', 'name'),
@@ -565,28 +556,86 @@ function project_form_node_form_alter(&$form, &$form_state) {
 }
 
 /**
- * Validate the short name (machine name) of a project node.
+ * Form API #element_validate callback. Validate the short name of a project.
  */
-function project_validate_project_shortname($element, &$form_state, $form) {
-  if (!empty($element['#value'])) {
-    $is_sandbox = !empty($form_state['values']['project']['sandbox']);
-    $nid = $form_state['node']->nid;
-
-    // Make sure machine name isn't already in use, or reserved.  Includes all
-    // X from project/issues/X paths used in project_issues module
-    $reserved_names = array('user', 'issues', 'releases', 'rss', 'subscribe-mail', 'search', 'add', 'update_project', 'statistics', 'comments', 'autocomplete', 'cvs', 'developers', 'usage');
-    if (in_array(strtolower($element['#value']), $reserved_names)) {
-      form_error($element, t('This project name is reserved.'));
-    }
-
-    $existing_nid = project_get_nid_from_machine_name($element['#value']);
-    if (!$is_sandbox && !empty($existing_nid) && $existing_nid !== $nid) {
-      form_error($element, t('This project name is already in use.'));
-    }
-    if (config_get('project.settings', 'require_lowercase_machine_name') && $element['#value'] != backdrop_strtolower($element['#value'])) {
-      form_error($element, t('Please use lowercase for the project short name.'));
-    }
+function project_validate_project_shortname_element($element, &$form_state, $form) {
+  // Don't attempt to validate if not present, the #required attribute will do
+  // the job of preventing submission.
+  if (empty($element['#value'])) {
+    return;
   }
+
+  $errors = array();
+  $node = $form_state['node'];
+  $node->project['name'] = $element['#value'];
+  $node->project['sandbox'] = $form_state['values']['project']['sandbox'];
+  project_validate_project_shortname($node, $errors);
+  foreach ($errors as $error) {
+    form_error($element, $error);
+  }
+}
+
+/**
+ * Validate the short name (machine name) of a project node.
+ *
+ * @param Node $node
+ *   The project node whose name will be validated.
+ * @param array $errors
+ *   An array of errors that will be modified by reference.
+ * @return bool
+ *   TRUE if there are no problems with the short name; FALSE on errors.
+ */
+function project_validate_project_shortname(Node $node, array &$errors) {
+  if (empty($node->project['name'])) {
+    $errors['no_name'] = t('Project name is required.');
+    return FALSE;
+  }
+
+  $is_sandbox = !empty($node->project['sandbox']);
+  $name = $node->project['name'];
+  $nid = $node->nid;
+
+  // Make sure machine name isn't already in use, or reserved.  Includes all
+  // X from project/issues/X paths used in project_issues module
+  $reserved_names = array('user', 'issues', 'releases', 'rss', 'subscribe-mail', 'search', 'add', 'update_project', 'statistics', 'comments', 'autocomplete', 'cvs', 'developers', 'usage');
+  if (in_array(strtolower($name), $reserved_names)) {
+    $errors['reserved'] = t('This project name is reserved.');
+  }
+
+  $existing_nid = project_get_nid_from_machine_name($name);
+  if (!$is_sandbox && !empty($existing_nid) && $existing_nid !== $nid) {
+    $errors['in_use'] = t('This project name is already in use.');
+  }
+  if (config_get('project.settings', 'require_lowercase_machine_name') && $name != backdrop_strtolower($name)) {
+    $errors['not_lowercase'] = t('Please use lowercase for the project short name.');
+  }
+
+  return empty($errors);
+}
+
+/**
+ * Validate a project's title.
+ *
+ * @param Node $node
+ *   The project node whose name will be validated.
+ * @param array $errors
+ *   An array of errors that will be modified by reference.
+ * @return bool
+ *   TRUE if there are no problems with the short name; FALSE on errors.
+ */
+function project_validate_project_title(Node $node, array &$errors) {
+  $query = db_select('node', 'n')
+    ->fields('n', array('nid'))
+    ->condition('n.type', project_project_node_types())
+    ->condition('n.title', $node->title);
+  if ($node->nid) {
+    $query->condition('n.nid', $node->nid, '!=');
+  }
+  $result = $query->execute()->fetchField();
+  if ($result) {
+    $errors['in_use'] = t('This project title is already in use.');
+  }
+  return !empty($errors);
 }
 
 /**

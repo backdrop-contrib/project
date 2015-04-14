@@ -59,7 +59,7 @@ class project_release_handler_filter_release_node_nid extends views_handler_filt
         $form_state['input'][$identifier] = $this->value;
       }
       // If we're configuring an exposed filter, add an <Any> option.
-      $any_label = variable_get('views_exposed_filter_any_label', 'old_any') == 'old_any' ? t('<Any>') : t('- Any -');
+      $any_label = config_get('views.settings', 'exposed_filter_any_label') == 'old_any' ? t('<Any>') : t('- Any -');
       if ($form['value']['#type'] != 'select') {
         $any_label = check_plain($any_label);
       }

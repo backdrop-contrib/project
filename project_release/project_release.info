@@ -3,4 +3,3 @@ description = Provides a release node type to represent releases of projects.
 package = Project
 backdrop = 1.x
 dependencies[] = project
-configure = admin/config/project/settings

@@ -32,9 +32,6 @@ define('PROJECT_USAGE_YEAR', PROJECT_USAGE_DAY * 365);
 define('PROJECT_USAGE_DATE_LONG', 'F jS');
 define('PROJECT_USAGE_DATE_SHORT', 'M j');
 
-// How many weeks should be shown in the usage pages?
-define('PROJECT_USAGE_SHOW_WEEKS', 6);
-
 /**
  * Implements hook_menu().
  */
@@ -44,9 +41,9 @@ function project_usage_menu() {
     'page callback' => 'backdrop_get_form',
     'page arguments' => array('project_usage_settings_form'),
     'access arguments' => array('administer projects'),
-    'description' => 'Configure how long usage data is retained.',
+    'description' => 'Configure how long data is retained in project usage statistics.',
     'weight' => 1,
-    'file' => 'includes/project_usage.admin.inc',
+    'file' => 'project_usage.admin.inc',
   );
   $items['project/usage'] = array(
     'title' => 'Project usage overview',

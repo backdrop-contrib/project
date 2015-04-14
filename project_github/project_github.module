@@ -4,6 +4,10 @@
  * Provides integration between Project module and GitHub.
  */
 
+define('GITHUB_PROJECT_CREATED', 'created');
+define('GITHUB_PROJECT_EXISTS', 'exists');
+define('GITHUB_PROJECT_FAILED', FALSE);
+
 /**
  * Implements hook_menu().
  */
@@ -45,6 +49,7 @@ function project_github_form_node_form_alter(&$form, &$form_state) {
       '#size' => 30,
       '#parents' => array('project', 'github_path'),
       '#weight' => -3,
+      '#element_validate' => array('project_github_validate_path_element'),
     );
     $form['project_github_sync_readme'] = array(
       '#type' => 'radios',
@@ -75,6 +80,26 @@ function project_github_form_node_form_alter(&$form, &$form_state) {
         ),
       );
     }
+  }
+}
+
+/**
+ * Form API #element_validate callback. Ensure a GitHub path is unique.
+ */
+function project_github_validate_path_element($element, &$form_state) {
+  if (strlen($element['#value']) === 0) {
+    return;
+  }
+  $node = $form_state['node'];
+  $existing_project_node = project_github_load_project($element['#value']);
+  if (!$existing_project_node || $existing_project_node->nid !== $node->nid) {
+    if (node_access('view', $existing_project_node)) {
+      $error = t('This GitHub path is already in use by the !title project.', array('!title' => l($existing_project_node->title, 'node/' . $existing_project_node->nid)));
+    }
+    else {
+      $error = t('This GitHub path is already in use by another project.');
+    }
+    form_error($element, $error);
   }
 }
 
@@ -112,7 +137,7 @@ function project_github_node_prepare(Node $node) {
   if (project_node_is_project($node)) {
     // Set default project values.
     $node->project += array(
-      'github_path' => 1,
+      'github_path' => '',
       'github_sync_readme' => 0,
     );
   }

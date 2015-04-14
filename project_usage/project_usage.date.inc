@@ -95,15 +95,15 @@ function project_usage_get_weeks_since($timestamp) {
  *   the current week.
  */
 function project_usage_get_active_weeks($reset = FALSE) {
-  $weeks = variable_get('project_usage_active_weeks', array());
+  $weeks = state_get('project_usage_active_weeks', array());
   if ($reset || empty($weeks)) {
-    $count = variable_get('project_usage_show_weeks', PROJECT_USAGE_SHOW_WEEKS);
+    $count = config_get('project_usage.settings', 'number_shown_weeks');
     $timestamps = db_query_range("SELECT DISTINCT(timestamp) FROM {project_usage_week_project} ORDER BY timestamp DESC", 0, $count);
     $weeks = array();
     foreach ($timestamps as $week) {
       $weeks[] = $week->timestamp;
     }
-    variable_set('project_usage_active_weeks', $weeks);
+    state_get('project_usage_active_weeks', $weeks);
   }
   return $weeks;
 }
@@ -131,6 +131,6 @@ function project_usage_get_current_active_week() {
  * @return The UNIX timestamp to expire the page at.
  */
 function project_usage_cache_time() {
-  return REQUEST_TIME + variable_get('project_usage_cache_length', 86400);
+  return REQUEST_TIME + config_get('project_usage.settings', 'cache_length');
 }
 

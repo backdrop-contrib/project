@@ -122,12 +122,24 @@ function project_github_get_payload() {
  *   TRUE if no error occurred processing the release, FALSE otherwise.
  */
 function _project_github_handle_release(array &$errors, array $payload) {
+  $project_node_result = FALSE;
+  $release_node_result = FALSE;
+  // Create the package zip file. Note this modifies the $payload to include the
+  // new package information.
   $package_result = _project_github_create_package($errors, $payload);
-  $release_result = FALSE;
+
+  // If packaging was successful, create the project node (done only if needed).
   if ($package_result) {
-    $release_result = _project_github_create_project_release($errors, $payload);
+    $project_node_result = _project_github_create_project($errors, $payload);
   }
-  return $package_result && $release_result;
+
+  // If a project node was created or already exists, create the release with
+  // package created above.
+  if ($project_node_result) {
+    $release_node_result = _project_github_create_project_release($errors, $payload);
+  }
+
+  return $package_result && $project_node_result && $release_node_result;
 }
 
 /**
@@ -240,6 +252,8 @@ function _project_github_create_package(array &$errors, array &$payload) {
   file_unmanaged_delete_recursive($directory);
 
   $success = FALSE;
+  $asset_url = NULL;
+
   // Successful upload.
   if ($upload_result->code == 201) {
     $success = TRUE;
@@ -289,10 +303,10 @@ function _project_github_create_package(array &$errors, array &$payload) {
   }
 
   if ($success) {
-    watchdog('github', 'Successfully created release for @project @tag and pushed the package to GitHub.', array('@project' => $project_name, '@tag' => $tag_name), WATCHDOG_INFO);
+    watchdog('project_github', 'Successfully created release for @project @tag and pushed the package to GitHub.', array('@project' => $project_name, '@tag' => $tag_name), WATCHDOG_INFO);
   }
   else {
-    watchdog('github', 'Error creating release for @project @tag.', array('@project' => $project_name, '@tag' => $tag_name), WATCHDOG_INFO);
+    watchdog('project_github', 'Error creating release for @project @tag.', array('@project' => $project_name, '@tag' => $tag_name), WATCHDOG_INFO);
     $errors[] = 'Upload HTTP request: ' . print_r($upload_result, 1);
     if (isset($search_result)) {
       $errors[] = 'Asset list request: ' . print_r($search_result, 1);
@@ -305,6 +319,67 @@ function _project_github_create_package(array &$errors, array &$payload) {
 }
 
 /**
+ * Given a release event, automatically create a project node.
+ *
+ * @param array $errors
+ *   An empty array that should be populated with any error information that
+ *   occurs during the request.
+ * @param array $payload
+ *   The GitHub webhook payload.
+ * @return string|FALSE
+ *   The one of the constants: GITHUB_PROJECT_CREATED, GITHUB_PROJECT_EXISTS, or
+ *   GITHUB_PROJECT_FAILED (FALSE).
+ */
+function _project_github_create_project(array &$errors, array $payload) {
+  // Check if we even have a project that matches for making a release.
+  $project_node = project_github_load_project($payload['repository']['full_name']);
+  if ($project_node) {
+    return GITHUB_PROJECT_EXISTS;
+  }
+
+  // @todo: Create a different type based on available project types?
+  // How would we identify which type of project should be created? For now,
+  // we rely on custom modules to use hook_node_presave() to modify the node
+  // type.
+  $types = project_project_node_types();
+  $type = reset($types);
+
+  $project_node = new Node(array(
+    'type' => $type,
+    'title' => $payload['repository']['name'],
+    'uid' => 1,
+    'status' => 1,
+    'project' => array(
+      'name' => $payload['repository']['name'],
+      'sandbox' => 0,
+      'releases_enabled' => 1,
+      'github_path' => $payload['repository']['full_name'],
+      'github_sync_readme' => 1,
+    ),
+  ));
+  project_github_update_readme($project_node);
+
+  // Manually validate.
+  project_validate_project_title($project_node, $errors);
+  project_validate_project_shortname($project_node, $errors);
+
+  // Allow other modules to set errors or modify the node before save.
+  foreach (module_implements('github_project_validate') as $module) {
+    $function = $module . '_github_project_validate';
+    $function($project_node, $errors, $payload);
+  }
+
+  if (empty($errors) && $project_node->save()) {
+    $success = GITHUB_PROJECT_CREATED;
+  }
+  else {
+    $success = GITHUB_PROJECT_FAILED;
+  }
+
+  return $success;
+}
+
+/**
  * Given a release event, automatically create a release node for the project.
  *
  * @param array $errors
@@ -313,7 +388,7 @@ function _project_github_create_package(array &$errors, array &$payload) {
  * @param array $payload
  *   The GitHub webhook payload.
  * @return bool
- *   TRUE if the package is modified and uploaded successfully. FALSE otherwise.
+ *   TRUE if the release node is created. FALSE otherwise.
  */
 function _project_github_create_project_release(array &$errors, array $payload) {
   $success = TRUE;
@@ -324,12 +399,24 @@ function _project_github_create_project_release(array &$errors, array $payload) 
     return $success;
   }
 
-  $tag_name = $payload['release']['tag_name'];
-
   // Determine the type of release node to be created.
-  // @todo: This should handle different types based on the project node type.
-  $release_type_list = project_release_release_node_types();
-  $release_type_name = reset($release_type_list);
+  $project_node_type = node_type_get_type($project_node);
+  $release_type_name = $project_node_type->settings['project_release_type'];
+
+  // If releases are not enabled return success.
+  if (!$release_type_name) {
+    return $success;
+  }
+
+  // If the release type is not found, return an error.
+  $release_node_type = node_type_get_type($release_type_name);
+  if (!$release_node_type) {
+    $success = FALSE;
+    $errors[] = format_string('The "!type" node type does not exist, so a release could not be created.', array('!type' => $release_node_type));
+    return $success;
+  }
+
+  $tag_name = $payload['release']['tag_name'];
 
   // Determine the release zip file, whether it's the first "asset" or the
   // zipball_url otherwise.
@@ -346,7 +433,8 @@ function _project_github_create_project_release(array &$errors, array $payload) 
     $zip_size = NULL; // Not provided by GitHub currently.
   }
 
-  // Check that we're not about to overwrite an existing node.
+  // Check that we're not about to overwrite an existing node. We will update
+  // the existing node with the same version string if applicable.
   $existing_nid = db_query("SELECT nid FROM {project_release} WHERE version = :version", array(':version' => $payload['release']['tag_name']))->fetchField();
   if ($existing_nid) {
     $node = node_load($existing_nid);
@@ -381,7 +469,8 @@ function _project_github_create_project_release(array &$errors, array $payload) 
   // Validate the version string before saving. Because we don't know where in
   // the string the API version is, we have to validate against each API version
   // until we find one that matches (if any).
-  $api_versions = project_release_get_api_versions();
+  $api_versions = project_release_get_api_versions($node->type);
+  $version_parts = FALSE;
   if ($api_versions) {
     foreach ($api_versions as $version_api) {
       $node->project_release['version_api'] = $version_api;
@@ -398,8 +487,17 @@ function _project_github_create_project_release(array &$errors, array $payload) 
     $success = FALSE;
     $errors[] = format_string('The version string "!tag" does not match the required format of the "!type" node type.', array('!tag' => $tag_name, '!type' => $node->type));
   }
-  else {
+
+  // Allow other modules to set errors or modify the node before save.
+  foreach (module_implements('github_project_release_validate') as $module) {
+    $function = $module . '_github_project_release_validate';
+    $function($project_node, $errors, $payload);
+  }
+
+  if (empty($errors)) {
     $success = (bool) $node->save();
+    // If the release is saved successfully, update the project node to trigger
+    // a rebuild of the current version information.
     if ($success) {
       $project_node->updated = REQUEST_TIME;
       $project_node->save();
@@ -407,10 +505,10 @@ function _project_github_create_project_release(array &$errors, array $payload) 
   }
 
   if ($success) {
-    watchdog('github', 'Created @node_type for @project @tag.', array('@node_type' => $release_type_name, '@project' => $project_node->title, '@tag' => $tag_name), WATCHDOG_INFO);
+    watchdog('project_github', 'Created @node_type for @project @tag.', array('@node_type' => $release_type_name, '@project' => $project_node->title, '@tag' => $tag_name), WATCHDOG_INFO);
   }
   else {
-    watchdog('github', 'Error creating @node_type @project @tag. <pre>@node</pre>', array('@node_type' => $release_type_name, '@project' => $project_node->title, '@tag' => $payload['release']['tag_name'], '@node' => print_r($node, 1)), WATCHDOG_INFO);
+    watchdog('project_github', 'Error creating @node_type @project @tag. <pre>@node</pre>', array('@node_type' => $release_type_name, '@project' => $project_node->title, '@tag' => $payload['release']['tag_name'], '@node' => print_r($node, 1)), WATCHDOG_INFO);
     $errors[] = 'Unable to save release node: ' . print_r($node, 1);
   }
   return $success;
@@ -457,6 +555,7 @@ function _project_github_update_readme(array &$errors, array $payload) {
     $success = TRUE;
   }
   else {
+    $errors['readme'] = t('Updating the node body field with the README content failed.');
     $success = FALSE;
   }
 
@@ -499,7 +598,15 @@ function project_github_update_readme(Node &$node) {
     // Trim newlines.
     $readme = trim($readme);
 
+    // Set the body field with the cleaned-up HTML version of the README.
     $node->field_body[LANGUAGE_NONE][0]['value'] = $readme;
+
+    // Set the format if one is not yet specified.
+    if (!isset($node->field_body[LANGUAGE_NONE][0]['format'])) {
+      $anonymous = backdrop_anonymous_user();
+      $node->field_body[LANGUAGE_NONE][0]['format'] = filter_default_format($anonymous);
+    }
+
     return TRUE;
   }
   return FALSE;

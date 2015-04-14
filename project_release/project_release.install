@@ -217,6 +217,13 @@ function project_release_install() {
   $api_type = node_type_set_defaults($node_type);
   node_type_save($api_type);
 
+  // Set the default project type to use the new content type for releases.
+  $project_node_type = node_type_get_type('project');
+  if ($project_node_type) {
+    $project_node_type->settings['project_release_type'] = 'project_release';
+    node_type_save($project_node_type);
+  }
+
   // Add the column to the project table.
   if (!db_field_exists('project', 'releases_enabled')) {
     $spec = array(

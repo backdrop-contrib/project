@@ -9,15 +9,13 @@
  * Implements hook_uninstall().
  */
 function project_usage_uninstall() {
-  $variables = array(
+  $state_settings = array(
+    'project_usage_last_daily',
+    'project_usage_life_daily',
     'project_usage_active_weeks',
-    'project_usage_life_weekly_project',
-    'project_usage_life_weekly_release',
-    'project_usage_date_long',
-    'project_usage_date_short',
   );
-  foreach ($variables as $variable) {
-    variable_del($variable);
+  foreach ($state_settings as $setting) {
+    state_del($setting);
   }
 }
 
@@ -25,29 +23,101 @@ function project_usage_uninstall() {
  * Implements hook_update_last_removed().
  */
 function project_usage_update_last_removed() {
-  return 6000;
-}
-
-/**
- * Remove dead tables/variables related to raw/daily logging.
- */
-function project_usage_update_7000() {
-  $variables = array(
-    'project_usage_last_daily',
-    'project_usage_last_weekly',
-    'project_usage_life_daily',
-  );
-  foreach ($variables as $variable) {
-    variable_del($variable);
-  }
-  db_drop_table('project_usage_raw');
-  db_drop_table('project_usage_day');
+  return 7000;
 }
 
 /**
  * Implements hook_schema().
  */
 function project_usage_schema() {
+  $schema['project_usage_raw'] = array(
+    'description' => 'Table used to store raw usage information.',
+    'fields' => array(
+      'name' => array(
+        'description' => 'Primary Key: The {project}.name of the project.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+      'timestamp' => array(
+        'description' => 'Primary Key: The Unix timestamp of when the request was made.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'site_key' => array(
+        'description' => 'Primary Key: An MD5 hash that identifies the site from which the request was made.',
+        'type' => 'varchar',
+        'length' => 128,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'version_api' => array(
+        'description' => 'The {project_release}.version_api of the API version requested.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'version' => array(
+        'description' => 'The {project_release}.version of the requested project.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+    ),
+    'primary key' => array('timestamp', 'name', 'site_key'),
+  );
+
+  $schema['project_usage_day'] = array(
+    'description' => 'Table used to store daily usage information.',
+    'fields' => array(
+      'timestamp' => array(
+        'description' => 'Primary Key: The Unix timestamp indicating the start of the day on which the requests were made.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'site_key' => array(
+        'description' => 'Primary Key: An MD5 hash that identifies the site from which the request was made.',
+        'type' => 'varchar',
+        'length' => 128,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'project_nid' => array(
+        'description' => 'Primary Key: The {node}.nid of the requested project.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'release_nid' => array(
+        'description' => 'The {node}.nid of the requested release.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'version_api' => array(
+        'description' => 'The {project_release}.version_api of the API version requested.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'hostname' => array(
+        'type' => 'varchar',
+        'length' => 128,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => "The IP address of the incoming request (to detect possible abuse).",
+      ),
+    ),
+    'primary key' => array('timestamp', 'site_key', 'project_nid'),
+  );
 
   $schema['project_usage_week_project'] = array(
     'description' => 'Table used to store weekly usage information by project and API version.',
@@ -60,7 +130,7 @@ function project_usage_schema() {
         'default' => 0,
       ),
       'timestamp' => array(
-        'description' => 'Primary Key: A Unix timestamp.',
+        'description' => 'Primary Key: A Unix timestamp indicating the start of the week on which the requests were made.',
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
@@ -95,7 +165,7 @@ function project_usage_schema() {
         'default' => 0,
       ),
       'timestamp' => array(
-        'description' => 'Primary Key: A Unix timestamp.',
+        'description' => 'Primary Key: A Unix timestamp indicating the start of the week on which the requests were made.',
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
