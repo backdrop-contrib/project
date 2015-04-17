@@ -1,4 +1,5 @@
 name = Project
 description = Base module for identifying nodes as projects (or relating to projects).
+type = module
 package = Project
 backdrop = 1.x

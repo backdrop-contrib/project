@@ -1,5 +1,6 @@
 name = Project releases
 description = Provides a release node type to represent releases of projects.
+type = module
 package = Project
 backdrop = 1.x
 dependencies[] = project
