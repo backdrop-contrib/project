@@ -92,7 +92,7 @@ function project_github_validate_path_element($element, &$form_state) {
   }
   $node = $form_state['node'];
   $existing_project_node = project_github_load_project($element['#value']);
-  if (!$existing_project_node || $existing_project_node->nid !== $node->nid) {
+  if ($existing_project_node && $existing_project_node->nid !== $node->nid) {
     if (node_access('view', $existing_project_node)) {
       $error = t('This GitHub path is already in use by the !title project.', array('!title' => l($existing_project_node->title, 'node/' . $existing_project_node->nid)));
     }
@@ -120,6 +120,7 @@ function project_github_field_extra_fields() {
     ),
   );
 
+  $extra = array();
   $types = project_project_node_types();
   foreach ($types as $type_name) {
     $extra['node'][$type_name] = array(

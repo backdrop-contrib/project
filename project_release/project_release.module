@@ -509,6 +509,7 @@ function project_release_field_extra_fields() {
     ),
   );
 
+  $extra = array();
   $types = project_project_node_types();
   foreach ($types as $type_name) {
     $extra['node'][$type_name] = array(
@@ -707,13 +708,16 @@ function project_release_node_delete(Node $node) {
 function project_release_node_view($node, $view_mode, $langcode) {
   if (project_node_is_project($node)) {
     if (!empty($node->project['releases_enabled']) && $view_mode !== 'rss' && $view_mode !== 'search_index') {
-      $node->content['project_release_downloads'] = array(
-        '#prefix' => '<h3>' . t('Downloads') . '</h3>',
-        '#weight' => 10,
-        'table' => array(
-          '#markup' => project_release_download_table($node->nid),
-        ),
-      );
+      $download_table = project_release_download_table($node->nid);
+      if ($download_table) {
+        $node->content['project_release_downloads'] = array(
+          '#prefix' => '<h3>' . t('Downloads') . '</h3>',
+          '#weight' => 10,
+          'table' => array(
+            '#markup' => $download_table,
+          ),
+        );
+      }
     }
   }
   elseif (project_release_node_is_release($node)) {
@@ -776,6 +780,17 @@ function project_release_admin_paths() {
   return array(
     'node/*/edit/releases' => TRUE,
   );
+}
+
+/**
+ * Implements hook_config_info().
+ */
+function project_release_config_info() {
+  $prefixes['project_release.settings'] = array(
+    'label' => t('Project release settings'),
+    'group' => t('Configuration'),
+  );
+  return $prefixes;
 }
 
 /**
@@ -1407,7 +1422,7 @@ function project_release_node_is_release($node) {
  */
 function project_release_node_type_is_release($node_type_name) {
   $node_type = node_type_get_type($node_type_name);
-  return $node_type->settings['project_behavior'] === 'project_release';
+  return $node_type && ($node_type->settings['project_behavior'] === 'project_release');
 }
 
 /**

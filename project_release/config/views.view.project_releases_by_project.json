@@ -1,9 +1,9 @@
 {
     "_config_name": "views.view.project_releases_by_project",
     "name": "project_releases_by_project",
+    "description": "",
     "module": "project_release",
     "storage": 4,
-    "description": "",
     "tag": "default",
     "disabled": false,
     "base_table": "node",
@@ -155,16 +155,11 @@
                         },
                         "specify_validation": 1,
                         "validate": {
-                            "type": "node",
+                            "type": "project",
                             "fail": "not found"
                         },
                         "validate_options": {
-                            "types": {
-                                "project": "project"
-                            },
-                            "access_op": "view",
-                            "nid_type": "nid",
-                            "access": 0
+                            "releases_enabled": "1"
                         },
                         "break_phrase": 0,
                         "not": 0

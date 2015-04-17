@@ -96,7 +96,7 @@ function project_release_schema() {
         'unsigned' => TRUE,
       ),
     ),
-    'primary key' => array('nid', 'tag'),
+    'primary key' => array('nid', 'version'),
     'indexes' => array(
       'project_nid' => array('project_nid'),
     ),
@@ -167,8 +167,7 @@ function project_release_schema() {
     'primary key' => array('nid', 'version_api', 'version_major'),
   );
 
-  $system_schema = system_schema();
-  $schema['cache_project_release_download_table'] = $system_schema['cache'];
+  $schema['cache_project_release_download_table'] = backdrop_get_schema_unprocessed('system', 'cache');
   $schema['cache_project_release_download_table']['description'] = 'Cache table for project release downloads.';
 
   return $schema;
@@ -205,7 +204,6 @@ function project_release_install() {
       'revision_enabled' => FALSE,
       'revision_default' => FALSE,
       'show_submitted_info' => FALSE,
-      'comment_default' => COMMENT_NODE_CLOSED,
       'project_behavior' => 'project_release',
       'project_release_version_format' => '!api#major%minor%patch#extra',
       'project_release_api_versions' => array('1.x'),
@@ -214,8 +212,13 @@ function project_release_install() {
     'module' => 'project_release',
     'is_new' => TRUE,
   );
-  $api_type = node_type_set_defaults($node_type);
-  node_type_save($api_type);
+  $node_type = node_type_set_defaults($node_type);
+
+  if (module_exists('comment')) {
+    $node_type->settings['comment_default'] = COMMENT_NODE_CLOSED;
+  }
+
+  node_type_save($node_type);
 
   // Set the default project type to use the new content type for releases.
   $project_node_type = node_type_get_type('project');
@@ -242,6 +245,7 @@ function project_release_install() {
  */
 function project_release_uninstall() {
   // Remove our additions from node types, but leave the node type itself.
+  backdrop_load('module', 'project_release');
   foreach (project_release_release_node_types() as $node_type) {
     if (isset($node_type->settings['project_release_version_format'])) {
       unset($node_type->settings['project_release_version_format']);

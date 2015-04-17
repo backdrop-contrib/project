@@ -184,7 +184,11 @@ function _project_github_create_package(array &$errors, array &$payload) {
   mkdir($directory);
 
   // Copy the file down locally.
-  $result = backdrop_http_request($source_zip_url);
+  $result = backdrop_http_request($source_zip_url, array(
+    'headers' => array(
+      'Authorization' => 'token ' . $access_token,
+    ),
+  ));
   if ($result->code == 200) {
     file_put_contents($directory . '/original.zip', $result->data);
   }

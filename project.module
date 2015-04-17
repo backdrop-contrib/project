@@ -131,11 +131,9 @@ function project_node_is_project($node) {
  * @return boolean
  *   Is the given node type a project node type or not?
  */
-function project_node_type_is_project($node_type) {
-  if (is_string($node_type)) {
-    $node_type = node_type_get_type($node_type);
-  }
-  return $node_type->settings['project_behavior'] === 'project';
+function project_node_type_is_project($node_type_name) {
+  $node_type = node_type_get_type($node_type_name);
+  return $node_type && ($node_type->settings['project_behavior'] === 'project');
 }
 
 /**
@@ -208,6 +206,17 @@ function project_views_api() {
     'api' => '3.0',
     'path' => backdrop_get_path('module', 'project') .'/views',
   );
+}
+
+/**
+ * Implements hook_config_info().
+ */
+function project_config_info() {
+  $prefixes['project.settings'] = array(
+    'label' => t('Project settings'),
+    'group' => t('Configuration'),
+  );
+  return $prefixes;
 }
 
 /**
@@ -655,6 +664,7 @@ function project_field_extra_fields() {
     ),
   );
 
+  $extra = array();
   $types = project_project_node_types();
   foreach ($types as $type_name) {
     $extra['node'][$type_name] = array(

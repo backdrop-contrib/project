@@ -142,6 +142,17 @@ function project_usage_flush_caches() {
 }
 
 /**
+ * Implements hook_config_info().
+ */
+function project_usage_config_info() {
+  $prefixes['project_usage.settings'] = array(
+    'label' => t('Project usage settings'),
+    'group' => t('Configuration'),
+  );
+  return $prefixes;
+}
+
+/**
  * Return the total usage data for a given project across all versions.
  *
  * @param $nid

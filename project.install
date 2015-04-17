@@ -21,16 +21,20 @@ function project_install() {
       'revision_enabled' => FALSE,
       'revision_default' => FALSE,
       'show_submitted_info' => FALSE,
-      'comment_default' => COMMENT_NODE_CLOSED,
       'project_behavior' => 'project',
     ),
     'base' => 'node_content',
     'module' => 'project',
     'is_new' => TRUE,
   );
-  $api_type = node_type_set_defaults($node_type);
-  node_add_body_field($api_type, st('Description'));
-  node_type_save($api_type);
+  $node_type = node_type_set_defaults($node_type);
+
+  if (module_exists('comment')) {
+    $node_type->settings['comment_default'] = COMMENT_NODE_CLOSED;
+  }
+
+  node_add_body_field($node_type, st('Description'));
+  node_type_save($node_type);
 }
 
 /**
