@@ -164,7 +164,7 @@ function project_usage_overview() {
         $machine_name = project_get_machine_name_from_nid($line->nid);
         $row = array(
           array('data' => $number++),
-          array('data' => l($line->title, 'project/usage/' . $machine_name[0]['value'])),
+          array('data' => l($line->title, 'project/usage/' . $machine_name)),
         );
         foreach ($weeks as $i => $week) {
           $row[] = array(
@@ -539,7 +539,7 @@ function theme_project_usage_header_links($variables) {
  *       Table rows for the weekly usage table.
  * @return
  *   An HTML IMG element, or empty string if there is an error such as
- *   insufficent data.
+ *   insufficient data.
  */
 function theme_project_usage_chart_by_release($variables) {
   $header = $variables['header'];

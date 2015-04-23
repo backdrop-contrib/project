@@ -1,15 +1,9 @@
 <?php
 
-class ProjectUsageGetDateTests extends BackdropTestCase {
-  function get_info() {
-    return array(
-      'name' => 'project_usage_gmgetdate()',
-      'desc' => 'Test the project_usage_gmgetdate() function.',
-      'group' => 'Project Usage',
-    );
-  }
-
+class ProjectUsageGetDateTests extends BackdropUnitTestCase {
   function test_timestamp_param() {
+    module_load_include('inc', 'project_usage', 'project_usage.date');
+
     $time = REQUEST_TIME;
     $parts = project_usage_gmgetdate($time);
 
@@ -25,6 +19,8 @@ class ProjectUsageGetDateTests extends BackdropTestCase {
   }
 
   function test_default_param() {
+    module_load_include('inc', 'project_usage', 'project_usage.date');
+
     // This is actually a little dodgy... we're assuming that these two lines
     // will be executed in the same second.
     $time = REQUEST_TIME;
@@ -44,20 +40,14 @@ class ProjectUsageGetDateTests extends BackdropTestCase {
 
 
 
-class ProjectUsageUsageDailyTimestampTests extends BackdropTestCase {
-  function get_info() {
-    return array(
-      'name' => 'project_usage_daily_timestamp()',
-      'desc' => 'Test the project_usage_daily_timestamp() function.',
-      'group' => 'Project Usage',
-    );
-  }
-
+class ProjectUsageUsageDailyTimestampTests extends BackdropUnitTestCase {
   function format_date($timestamp) {
-    return format_date($timestamp, 'short', NULL, 0);
+    return format_date($timestamp, 'short', NULL, 'UTC');
   }
 
   function test_default_param() {
+    module_load_include('inc', 'project_usage', 'project_usage.date');
+
     $time = REQUEST_TIME;
     $expected = project_usage_daily_timestamp($time);
     $actual = project_usage_daily_timestamp();
@@ -65,6 +55,8 @@ class ProjectUsageUsageDailyTimestampTests extends BackdropTestCase {
     $this->assertEqual($expected, $actual, $this->format_date($time) . ' should round to ' . $this->format_date($expected) . ' got ' . $this->format_date($actual));
   }
   function test_timestamp_param() {
+    module_load_include('inc', 'project_usage', 'project_usage.date');
+
     $time = 1189700682;
     $expected = 1189641600;
     $actual = project_usage_daily_timestamp($time);
@@ -72,6 +64,8 @@ class ProjectUsageUsageDailyTimestampTests extends BackdropTestCase {
     $this->assertEqual($expected, $actual, $this->format_date($time) . ' should round to ' . $this->format_date($expected) . ' got ' . $this->format_date($actual));
   }
   function test_array_param() {
+    module_load_include('inc', 'project_usage', 'project_usage.date');
+
     $time = 1189700682;
     $expected = 1189641600;
     $actual = project_usage_daily_timestamp(project_usage_gmgetdate($time));
@@ -81,20 +75,14 @@ class ProjectUsageUsageDailyTimestampTests extends BackdropTestCase {
 }
 
 
-class ProjectUsageUsageWeeklyTimestampTests extends BackdropTestCase {
-  function get_info() {
-    return array(
-      'name' => 'project_usage_weekly_timestamp()',
-      'desc' => 'Test the project_usage_weekly_timestamp() function.',
-      'group' => 'Project Usage',
-    );
-  }
-
+class ProjectUsageUsageWeeklyTimestampTests extends BackdropUnitTestCase {
   function format_date($timestamp) {
-    return format_date($timestamp, 'short', NULL, 0);
+    return format_date($timestamp, 'short', NULL, 'UTC');
   }
 
   function test_default_param() {
+    module_load_include('inc', 'project_usage', 'project_usage.date');
+
     $time = REQUEST_TIME;
     $expected = project_usage_weekly_timestamp($time);
     $actual = project_usage_weekly_timestamp();
@@ -102,6 +90,8 @@ class ProjectUsageUsageWeeklyTimestampTests extends BackdropTestCase {
     $this->assertEqual($expected, $actual, $this->format_date($time) . ' should round to ' . $this->format_date($expected) . ' got ' . $this->format_date($actual));
   }
   function test_timestamp_param() {
+    module_load_include('inc', 'project_usage', 'project_usage.date');
+
     $time = 1189700682;
     $expected = 1189296000;
     $actual = project_usage_weekly_timestamp($time);
@@ -109,6 +99,8 @@ class ProjectUsageUsageWeeklyTimestampTests extends BackdropTestCase {
     $this->assertEqual($expected, $actual, $this->format_date($time) . ' should round to ' . $this->format_date($expected) . ' got ' . $this->format_date($actual));
   }
   function test_array_param() {
+    module_load_include('inc', 'project_usage', 'project_usage.date');
+
     $time = 1189700682;
     $expected = 1189296000;
     $actual = project_usage_weekly_timestamp(project_usage_gmgetdate($time));
@@ -118,20 +110,13 @@ class ProjectUsageUsageWeeklyTimestampTests extends BackdropTestCase {
 }
 
 
-class ProjectUsageGetWeeksSinceTests extends BackdropTestCase {
-  function get_info() {
-    return array(
-      'name' => 'project_usage_get_weeks_since()',
-      'desc' => 'Test the project_usage_get_weeks_since() function.',
-      'group' => 'Project Usage',
-    );
-  }
-
+class ProjectUsageGetWeeksSinceTests extends BackdropUnitTestCase {
   function format_date($timestamp) {
-    return format_date($timestamp, 'short', NULL, 0);
+    return format_date($timestamp, 'short', NULL, 'UTC');
   }
 
-  function testIt() {
+  function test_weeks() {
+    module_load_include('inc', 'project_usage', 'project_usage.date');
     $time = 1188600682;
     $expected_first = project_usage_weekly_timestamp($time);
     $expected_last = project_usage_weekly_timestamp();

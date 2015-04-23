@@ -103,7 +103,7 @@ function project_usage_get_active_weeks($reset = FALSE) {
     foreach ($timestamps as $week) {
       $weeks[] = $week->timestamp;
     }
-    state_get('project_usage_active_weeks', $weeks);
+    state_set('project_usage_active_weeks', $weeks);
   }
   return $weeks;
 }

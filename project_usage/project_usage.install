@@ -11,7 +11,6 @@
 function project_usage_uninstall() {
   $state_settings = array(
     'project_usage_last_daily',
-    'project_usage_life_daily',
     'project_usage_active_weeks',
   );
   foreach ($state_settings as $setting) {
@@ -63,6 +62,27 @@ function project_usage_schema() {
         'description' => 'The {project_release}.version of the requested project.',
         'type' => 'varchar',
         'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'project_nid' => array(
+        'description' => 'The {node}.nid of the requested project.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'release_nid' => array(
+        'description' => 'The {node}.nid of the requested release.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'hostname' => array(
+        'description' => 'The IP address of the incoming request (to detect possible abuse).',
+        'type' => 'varchar',
+        'length' => 128,
         'not null' => TRUE,
         'default' => '',
       ),

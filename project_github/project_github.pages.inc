@@ -56,7 +56,7 @@ function project_github_listener_callback($callback, array $expected_events) {
  * Access callback for all GitHub event webhooks.
  */
 function project_github_listener_access() {
-  $secret_key = settings_get('project_github_secret_key', '');
+  $secret_key = settings_get('project_github_secret_key');
   $access_token = settings_get('project_github_access_token');
 
   if (!strlen($access_token)) {
@@ -459,7 +459,7 @@ function _project_github_create_project_release(array &$errors, array $payload) 
     // This has issues because the release notes are in Markdown, not rendered
     // HTML, and we'd need to deal with updates, but GitHub doesn't send us
     // information on release updates, only on creation.
-    //'field_body' => array(LANGUAGE_NONE => array(
+    //'body' => array(LANGUAGE_NONE => array(
     //  'value' => $payload['release']['body'],
     //)),
   );
@@ -599,12 +599,12 @@ function project_github_update_readme(Node &$node) {
     $readme = trim($readme);
 
     // Set the body field with the cleaned-up HTML version of the README.
-    $node->field_body[LANGUAGE_NONE][0]['value'] = $readme;
+    $node->body[LANGUAGE_NONE][0]['value'] = $readme;
 
     // Set the format if one is not yet specified.
-    if (!isset($node->field_body[LANGUAGE_NONE][0]['format'])) {
+    if (!isset($node->body[LANGUAGE_NONE][0]['format'])) {
       $anonymous = backdrop_anonymous_user();
-      $node->field_body[LANGUAGE_NONE][0]['format'] = filter_default_format($anonymous);
+      $node->body[LANGUAGE_NONE][0]['format'] = filter_default_format($anonymous);
     }
 
     return TRUE;

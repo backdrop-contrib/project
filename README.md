@@ -6,13 +6,13 @@ projects such as modules, themes, and layouts. The base module simply
 provides the ability to mark certain content types as "projects". Additional
 modules then extend this ability, including the following sub-modules:
 
-- Project GitHub: Populate project information from GitHub.
+- Project Release: Create releases that map to a versioned, downloadable file.
 - Project Usage: Maintain historical information on project installs.
+- Project GitHub: Populate project and release information from GitHub.
 
 Although this module is based upon the [Drupal Project module]
-(https://www.drupal.org/project/project), it is much smaller in scope.
-This project does not include an issue tracker, maintainer control,
-sandbox/full project toggles, or project packages.
+(https://www.drupal.org/project/project), it is smaller in scope.
+This project does not include an issue tracker or maintainer access controls.
 
 Installation
 ------------
@@ -20,9 +20,13 @@ Installation
 - Install this module using the official Backdrop CMS instructions at
   https://backdropcms.org/guide/modules
 
-- Visit the configuration page under Administration > Structure >
-  Projects > Settings (admin/structure/projects/settings) and enter the
-  required information.
+- A "project" node type will automatically be created for you. Configure it as
+  necessary under Administration > Structure > Content Types > Project
+  (admin/structure/types/manage/project).
+
+- Optionally, visit the configuration page under Administration > Structure >
+  Projects > Settings (admin/structure/project/settings) to configure
+  the site-wide settings of Project module.
 
 License
 -------

@@ -23,25 +23,30 @@
  * Determine the root of the Backdrop installation.
  */
 if (isset($_ENV['BACKDROP_ROOT'])) {
-  define('BACKDROP_ROOT', $_ENV['BACKDROP_ROOT']);
+  $backdrop_root = $_ENV['BACKDROP_ROOT'];
 }
 else {
   $cwd = getcwd();
   if (($pos = strpos($cwd, '/sites/')) || ($pos = strpos($cwd, '/modules/'))) {
     $cwd = substr($cwd, 0, $pos);
   }
-  define('BACKDROP_ROOT', $cwd);
+  $backdrop_root = $cwd;
 }
+define('BACKDROP_ROOT', $backdrop_root);
 
 /**
  * Determine directory tree for the XML history files.
  */
 if (isset($_ENV['HISTORY_ROOT'])) {
-  define('HISTORY_ROOT', $_ENV['HISTORY_ROOT']);
+  $history_root = $_ENV['HISTORY_ROOT'];
+}
+elseif (isset($cwd)) {
+  $history_root = $cwd . '/files/release-history';
 }
 else {
-  define('HISTORY_ROOT', $cwd . '/files/release-history');
+  $history_root = '';
 }
+define('HISTORY_ROOT', $history_root);
 
 /**
  * Find and serve the proper history file.

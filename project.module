@@ -135,7 +135,7 @@ function project_node_type_is_project($node_type) {
   if (is_string($node_type)) {
     $node_type = node_type_get_type($node_type);
   }
-  return $node_type->settings['project_behavior'] == 'project';
+  return $node_type->settings['project_behavior'] === 'project';
 }
 
 /**
@@ -697,6 +697,6 @@ function project_get_machine_name_from_nid($nid) {
   if (isset($machine_names[$nid])) {
     return $machine_names[$nid];
   }
-  $machine_names[$nid] = db_query("SELECT name FROM {project} WHERE nid = :nid", array(':name' => $nid))->fetchField();
+  $machine_names[$nid] = db_query("SELECT name FROM {project} WHERE nid = :nid", array(':nid' => $nid))->fetchField();
   return $machine_names[$nid];
 }

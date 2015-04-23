@@ -23,8 +23,8 @@ else {
 
 // The hostname of your site. Required so that when we bootstrap Backdrop in
 // this script, we find the right settings.php file in your sites folder.
-$url = getopt('url');
-define('HTTP_HOST', $url ? parse_url($url, PHP_URL_HOST) : '');
+$options = getopt('', array('url:'));
+define('HTTP_HOST', $options['url'] ? parse_url($options['url'], PHP_URL_HOST) : '');
 
 // ------------------------------------------------------------
 // Initialization
@@ -63,7 +63,7 @@ if (!chdir(BACKDROP_ROOT)) {
   exit(1);
 }
 
-require_once './core/includes/bootstrap.inc';
+require_once BACKDROP_ROOT . '/core/includes/bootstrap.inc';
 backdrop_bootstrap(BACKDROP_BOOTSTRAP_FULL);
 
 if (!module_exists('project_usage')) {
@@ -91,7 +91,7 @@ if (state_get('project_usage_last_daily', 0) <= ($now - PROJECT_USAGE_DAY)) {
 // processing and compare that to the start of this week. If the last
 // weekly processing occurred before the current week began then there should
 // be one (or more) week's worth of data ready to process.
-$default = $now - state_get('project_usage_life_daily', 4 * PROJECT_USAGE_WEEK);
+$default = $now - config_get('project_usage.settings', 'life_daily');
 $last_weekly = state_get('project_usage_last_weekly', $default);
 $current_week_start = project_usage_weekly_timestamp(NULL, 0);
 if ($last_weekly <= $current_week_start) {
@@ -118,31 +118,51 @@ function project_usage_process_daily() {
 
   watchdog('project_usage', 'Starting to process daily usage data for !date.', array('!date' => format_date($timestamp, 'custom', 'Y-m-d')));
 
+  // Assign project and release node IDs.
+  $num_updates = 0;
+  $result = db_query("SELECT DISTINCT name, version FROM {project_usage_raw} WHERE project_nid = 0 OR release_nid = 0");
+  foreach ($result as $row) {
+    $project_nid = db_query("SELECT nid FROM {project} WHERE name = :name", array(':name' => $row->name))->fetchField();
+    if ($project_nid) {
+      $release_nid = db_query("SELECT nid FROM {project_release} WHERE project_nid = :project_nid AND version = :version", array(':project_nid' => $project_nid, ':version' => $row->version))->fetchField();
+      if ($release_nid) {
+        $update_result = db_query("UPDATE {project_usage_raw} SET project_nid = :project_nid, release_nid = :release_nid WHERE name = :name AND version = :version", array(':project_nid' => $project_nid, ':release_nid' => $release_nid, ':name' => $row->name, ':version' => $row->version));
+        $num_updates += $update_result->rowCount();
+      }
+    }
+  }
+  $time_1 = time();
+  $substitutions = array(
+    '!rows' => format_plural($num_updates, '1 row', '@count rows'),
+    '!delta' => format_interval($time_1 - $time_0),
+  );
+  watchdog('project_usage', 'Assigned project and release node IDs to !rows (!delta).', $substitutions);
+
   // Move usage records with project node IDs into the daily table and remove
   // the rest.
-  db_query("INSERT INTO {project_usage_day} (timestamp, site_key, pid, nid, tid, ip_addr) SELECT timestamp, site_key, pid, nid, tid, ip_addr FROM {project_usage_raw} WHERE timestamp < %d AND pid <> 0", $timestamp);
-  $num_new_day_rows = db_affected_rows();
-  db_query("DELETE FROM {project_usage_raw} WHERE timestamp < %d", $timestamp);
-  $num_deleted_raw_rows = db_affected_rows();
-  $time_1 = microtime(TRUE);
+  $result = db_query("INSERT INTO {project_usage_day} (timestamp, site_key, project_nid, release_nid, version_api, hostname) SELECT timestamp, site_key, project_nid, release_nid, version_api, hostname FROM {project_usage_raw} WHERE timestamp < :timestamp AND project_nid <> 0", array(':timestamp' => $timestamp));
+  $num_new_day_rows = $result->rowCount();
+  $result = db_query("DELETE FROM {project_usage_raw} WHERE timestamp < :timestamp", array(':timestamp' => $timestamp));
+  $num_deleted_raw_rows = $result->rowCount();
+  $time_2 = microtime(TRUE);
   $substitutions = array(
     '!day_rows' => format_plural($num_new_day_rows, '1 row', '@count rows'),
     '!raw_rows' => format_plural($num_deleted_raw_rows, '1 row', '@count rows'),
-    '!delta' => format_interval($time_1 - $time_0),
-  );
-  watchdog('project_usage', 'Moved usage from raw to daily: !day_rows added to {project_usage_day}, !raw_rows deleted from {project_usage_raw} (!delta seconds).', $substitutions);
-
-  // Remove old daily records.
-  $seconds = state_get('project_usage_life_daily', 4 * PROJECT_USAGE_WEEK);
-  $result = db_query("DELETE FROM {project_usage_day} WHERE timestamp < %d", time() - $seconds);
-  $time_2 = microtime(TRUE);
-  $substitutions = array(
-    '!rows' => format_plural($result->rowCount(), '1 old daily row', '@count old daily rows'),
     '!delta' => format_interval($time_2 - $time_1),
   );
-  watchdog('project_usage', 'Removed !rows (!delta seconds).', $substitutions);
+  watchdog('project_usage', 'Moved usage from raw to daily: !day_rows added to {project_usage_day}, !raw_rows deleted from {project_usage_raw} (!delta).', $substitutions);
 
-  watchdog('project_usage', 'Completed daily usage data processing (total time: !delta seconds).', array('!delta' => format_interval($time_2 - $time_0)));
+  // Remove old daily records.
+  $seconds = config_get('project_usage.settings', 'life_daily');
+  $result = db_query("DELETE FROM {project_usage_day} WHERE timestamp < :timestamp", array(':timestamp' => REQUEST_TIME - $seconds));
+  $time_3 = microtime(TRUE);
+  $substitutions = array(
+    '!rows' => format_plural($result->rowCount(), '1 old daily row', '@count old daily rows'),
+    '!delta' => format_interval($time_3 - $time_2),
+  );
+  watchdog('project_usage', 'Removed !rows (!delta).', $substitutions);
+
+  watchdog('project_usage', 'Completed daily usage data processing (total time: !delta).', array('!delta' => format_interval($time_2 - $time_0)));
 }
 
 /**
@@ -157,6 +177,7 @@ function project_usage_process_weekly($timestamp) {
 
   // Get all the weeks since we last ran.
   $weeks = project_usage_get_weeks_since($timestamp);
+
   // Skip the last entry since it's the current, incomplete week.
   $count = count($weeks) - 1;
   for ($i = 0; $i < $count; $i++) {
@@ -169,62 +190,58 @@ function project_usage_process_weekly($timestamp) {
     // is a problem--perhaps some rows existed from a previous, incomplete
     // run that are preventing inserts, throw a watchdog error.
 
-    $sql = "INSERT INTO {project_usage_week_project} (nid, timestamp, tid, count) SELECT pid, %d, tid, COUNT(DISTINCT site_key) FROM {project_usage_day} WHERE timestamp >= %d AND timestamp < %d AND pid <> 0 GROUP BY pid, tid";
-    $query_args = array($start, $start, $end);
+    $sql = "INSERT INTO {project_usage_week_project} (nid, timestamp, version_api, count) SELECT project_nid as nid, :start, version_api, COUNT(DISTINCT site_key) FROM {project_usage_day} WHERE timestamp >= :start AND timestamp < :end AND project_nid <> 0 GROUP BY project_nid, version_api";
+    $query_args = array(':start' => $start, ':end' => $end);
     $result = db_query($sql, $query_args);
     $time_2 = microtime(TRUE);
-    _db_query_callback($query_args, TRUE);
     $substitutions = array(
       '!date' => $date,
-      '%query' => preg_replace_callback(DB_QUERY_REGEXP, '_db_query_callback', $sql),
-      '!projects' => format_plural(db_affected_rows(), '1 project', '@count projects'),
+      '!projects' => format_plural($result->rowCount(), '1 project', '@count projects'),
       '!delta' => format_interval($time_2 - $time_1),
     );
     if (!$result) {
-      watchdog('project_usage', 'Query failed inserting weekly project tallies for !date, query: %query (!delta seconds).', $substitutions, WATCHDOG_ERROR);
+      watchdog('project_usage', 'Query failed inserting weekly project tallies for !date (!delta).', $substitutions, WATCHDOG_ERROR);
     }
     else {
-      watchdog('project_usage', 'Computed weekly project tallies for !date for !projects (!delta seconds).', $substitutions);
+      watchdog('project_usage', 'Computed weekly project tallies for !date for !projects (!delta).', $substitutions);
     }
 
-    $sql = "INSERT INTO {project_usage_week_release} (nid, timestamp, count) SELECT nid, %d, COUNT(DISTINCT site_key) FROM {project_usage_day} WHERE timestamp >= %d AND timestamp < %d AND nid <> 0 GROUP BY nid";
-    $query_args = array($start, $start, $end);
+    $sql = "INSERT INTO {project_usage_week_release} (nid, timestamp, count) SELECT release_nid as nid, :start, COUNT(DISTINCT site_key) FROM {project_usage_day} WHERE timestamp >= :start AND timestamp < :end AND release_nid <> 0 GROUP BY release_nid";
+    $query_args = array(':start' => $start, ':end' => $end);
     $result = db_query($sql, $query_args);
     $time_3 = microtime(TRUE);
-    _db_query_callback($query_args, TRUE);
     $substitutions = array(
       '!date' => $date,
-      '!releases' => format_plural(db_affected_rows(), '1 release', '@count releases'),
-      '%query' => preg_replace_callback(DB_QUERY_REGEXP, '_db_query_callback', $sql),
+      '!releases' => format_plural($result->rowCount(), '1 release', '@count releases'),
       '!delta' => format_interval($time_3 - $time_2),
     );
     if (!$result) {
-      watchdog('project_usage', 'Query failed inserting weekly release tallies for !date, query: %query (!delta seconds).', $substitutions, WATCHDOG_ERROR);
+      watchdog('project_usage', 'Query failed inserting weekly release tallies for !date, query (!delta).', $substitutions, WATCHDOG_ERROR);
     }
     else {
-      watchdog('project_usage', 'Computed weekly release tallies for !date for !releases (!delta seconds).', $substitutions);
+      watchdog('project_usage', 'Computed weekly release tallies for !date for !releases (!delta).', $substitutions);
     }
   }
 
   // Remove any tallies that have aged out.
   $time_4 = microtime(TRUE);
   $project_life = config_get('project_usage.settings', 'life_weekly_project');
-  db_query("DELETE FROM {project_usage_week_project} WHERE timestamp < %d", REQUEST_TIME - $project_life);
+  $result = db_query("DELETE FROM {project_usage_week_project} WHERE timestamp < :timestamp", array(':timestamp' => REQUEST_TIME - $project_life));
   $time_5 = microtime(TRUE);
   $substitutions = array(
-    '!rows' => format_plural(db_affected_rows(), '1 old weekly project row', '@count old weekly project rows'),
+    '!rows' => format_plural($result->rowCount(), '1 old weekly project row', '@count old weekly project rows'),
     '!delta' => format_interval($time_5 - $time_4),
   );
-  watchdog('project_usage', 'Removed !rows (!delta seconds).', $substitutions);
+  watchdog('project_usage', 'Removed !rows (!delta).', $substitutions);
 
   $release_life = config_get('project_usage.settings', 'life_weekly_release');
-  db_query("DELETE FROM {project_usage_week_release} WHERE timestamp < %d", REQUEST_TIME - $release_life);
+  $result = db_query("DELETE FROM {project_usage_week_release} WHERE timestamp < :timestamp", array(':timestamp' => REQUEST_TIME - $release_life));
   $time_6 = microtime(TRUE);
   $substitutions = array(
-    '!rows' => format_plural(db_affected_rows(), '1 old weekly release row', '@count old weekly release rows'),
+    '!rows' => format_plural($result->rowCount(), '1 old weekly release row', '@count old weekly release rows'),
     '!delta' => format_interval($time_6 - $time_5),
   );
-  watchdog('project_usage', 'Removed !rows (!delta seconds).', $substitutions);
+  watchdog('project_usage', 'Removed !rows (!delta).', $substitutions);
 
-  watchdog('project_usage', 'Completed weekly usage data processing (total time: !delta seconds).', array('!delta' => format_interval($time_6 - $time_0)));
+  watchdog('project_usage', 'Completed weekly usage data processing (total time: !delta).', array('!delta' => format_interval($time_6 - $time_0)));
 }
