@@ -91,7 +91,7 @@ if (state_get('project_usage_last_daily', 0) <= ($now - PROJECT_USAGE_DAY)) {
 // processing and compare that to the start of this week. If the last
 // weekly processing occurred before the current week began then there should
 // be one (or more) week's worth of data ready to process.
-$default = $now - config_get('project_usage.settings', 'life_daily');
+$default = $now - config_get('project_usage.settings', 'life_weekly_project');
 $last_weekly = state_get('project_usage_last_weekly', $default);
 $current_week_start = project_usage_weekly_timestamp(NULL, 0);
 if ($last_weekly <= $current_week_start) {
