@@ -29,7 +29,7 @@ define('PROJECT_USAGE_YEAR', PROJECT_USAGE_DAY * 365);
  * don't have hour or minute resolution so displaying that would be confusing
  * and take up extra space.
  */
-define('PROJECT_USAGE_DATE_LONG', 'F jS');
+define('PROJECT_USAGE_DATE_LONG', 'F jS, Y');
 define('PROJECT_USAGE_DATE_SHORT', 'M j');
 
 /**
