@@ -81,16 +81,17 @@ $tables_updated = FALSE;
 // calculate that day's totals. Continue processing each day until we reach the
 // current day. Data for the current (partial) day is not calculated.
 $last_processed_daily_timestamp = state_get('project_usage_last_daily', REQUEST_TIME - PROJECT_USAGE_YEAR);
-$oldest_time = (int) db_query("SELECT MIN(timestamp) FROM {project_usage_raw} WHERE timestamp >= :last_processed_time", array(':last_processed_time' => $last_processed_daily_timestamp))->fetchField();
-$oldest_day_end = project_usage_daily_timestamp($oldest_time, 1);
+$start_of_current_day = project_usage_daily_timestamp();
 
-if ($last_processed_daily_timestamp < $oldest_day_end) {
+// Run if we haven't processed yesterday's numbers.
+if ($last_processed_daily_timestamp < $start_of_current_day) {
   // Assign project NIDs to the raw data since the last run.
   project_usage_process_raw_data();
 
   // Timestamp for beginning of the oldest available data.
+  $oldest_time = (int) db_query("SELECT MIN(timestamp) FROM {project_usage_raw}")->fetchField();
+  $oldest_day_end = project_usage_daily_timestamp($oldest_time, 1);
   $daily_timestamp = project_usage_daily_timestamp($oldest_time);
-  $start_of_current_day = project_usage_daily_timestamp();
 
   // Process all days up until the current one.
   while ($daily_timestamp < $start_of_current_day) {
@@ -208,7 +209,7 @@ function project_usage_process_weekly($week_start_timestamp) {
   $start = project_usage_weekly_timestamp($week_start_timestamp);
   $end = project_usage_weekly_timestamp($week_start_timestamp, 1);
 
-  // Safty check to prevent processing of the current week's numbers, as the
+  // Safety check to prevent processing of the current week's numbers, as the
   // week has not yet finished.
   if ($end > REQUEST_TIME) {
     return;
@@ -220,30 +221,34 @@ function project_usage_process_weekly($week_start_timestamp) {
   // Try to compute the usage tallies per project and per release. If there
   // is a problem--perhaps some rows existed from a previous, incomplete
   // run that are preventing inserts, throw a watchdog error.
-  $sql = "INSERT INTO {project_usage_week_project} (nid, timestamp, version_api, count) SELECT project_nid as nid, :start, version_api, COUNT(DISTINCT site_key) FROM {project_usage_day} WHERE timestamp >= :start AND timestamp < :end AND project_nid <> 0 GROUP BY project_nid, version_api";
-  $query_args = array(':start' => $start, ':end' => $end);
-  $result = db_query($sql, $query_args);
-  $project_count = $result->rowCount();
-  $substitutions = array(
-    '@projects' => format_plural($project_count, '1 project', '@count projects'),
-    '@start' => $start_date,
-    '@end' => $end_date,
-  );
-  if (!$result) {
-    watchdog('project_usage', 'Query failed inserting weekly project tallies on @projects for week the week of @start through @end.', $substitutions, WATCHDOG_ERROR);
+  try {
+    $sql = "INSERT INTO {project_usage_week_project} (nid, timestamp, version_api, count) SELECT project_nid as nid, :start, version_api, COUNT(DISTINCT site_key) FROM {project_usage_day} WHERE timestamp >= :start AND timestamp < :end AND project_nid <> 0 GROUP BY project_nid, version_api";
+    $query_args = array(':start' => $start, ':end' => $end);
+    $result = db_query($sql, $query_args);
+    $project_count = $result->rowCount();
+  }
+  catch (PDOException $e) {
+    $project_count = 0;
+    $substitutions = array(
+      '@start' => $start_date,
+      '@end' => $end_date,
+    );
+    watchdog('project_usage', 'Weekly project tallies for the week of @start through @end already calculated. No data updated.', $substitutions);
   }
 
-  $sql = "INSERT INTO {project_usage_week_release} (nid, timestamp, count) SELECT release_nid as nid, :start, COUNT(DISTINCT site_key) FROM {project_usage_day} WHERE timestamp >= :start AND timestamp < :end AND release_nid <> 0 GROUP BY release_nid";
-  $query_args = array(':start' => $start, ':end' => $end);
-  $result = db_query($sql, $query_args);
-  $release_count = $result->rowCount();
-  $substitutions = array(
-    '@releases' => format_plural($release_count, '1 release', '@count releases'),
-    '@start' => $start_date,
-    '@end' => $end_date,
-  );
-  if (!$result) {
-    watchdog('project_usage', 'Query failed inserting weekly release tallies on @releases the week of @start through @end.', $substitutions, WATCHDOG_ERROR);
+  try {
+    $sql = "INSERT INTO {project_usage_week_release} (nid, timestamp, count) SELECT release_nid as nid, :start, COUNT(DISTINCT site_key) FROM {project_usage_day} WHERE timestamp >= :start AND timestamp < :end AND release_nid <> 0 GROUP BY release_nid";
+    $query_args = array(':start' => $start, ':end' => $end);
+    $result = db_query($sql, $query_args);
+    $release_count = $result->rowCount();
+  }
+  catch (PDOException $e) {
+    $release_count = 0;
+    $substitutions = array(
+      '@start' => $start_date,
+      '@end' => $end_date,
+    );
+    watchdog('project_usage', 'Weekly release tallies for the week of @start through @end already calculated. No data updated.', $substitutions);
   }
 
   $substitutions = array(
@@ -261,16 +266,16 @@ function project_usage_process_weekly($week_start_timestamp) {
 function project_usage_remove_expired_data() {
   // Remove old daily records.
   $daily_life = config_get('project_usage.settings', 'life_daily');
-  $daily_life = $daily_life || 2419200; // 28 days.
+  $daily_life = $daily_life ? $daily_life : 2419200; // 28 days.
   db_query("DELETE FROM {project_usage_day} WHERE timestamp < :timestamp", array(':timestamp' => REQUEST_TIME - $daily_life));
 
   // Remove old weekly project records.
   $project_life = config_get('project_usage.settings', 'life_weekly_project');
-  $project_life = $project_life || PROJECT_USAGE_YEAR;
+  $project_life = $project_life ? $project_life : PROJECT_USAGE_YEAR;
   db_query("DELETE FROM {project_usage_week_project} WHERE timestamp < :timestamp", array(':timestamp' => REQUEST_TIME - $project_life));
 
   // Remove old weekly project release records.
   $release_life = config_get('project_usage.settings', 'life_weekly_release');
-  $release_life = $release_life || PROJECT_USAGE_YEAR;
+  $release_life = $release_life ? $release_life : PROJECT_USAGE_YEAR;
   db_query("DELETE FROM {project_usage_week_release} WHERE timestamp < :timestamp", array(':timestamp' => REQUEST_TIME - $release_life));
 }
