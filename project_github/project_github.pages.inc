@@ -4,152 +4,6 @@
  */
 
 /**
- * Page callback for listening to all GitHub events on a contrib project.
- *
- * @param string $callback
- *   A callable function. Which should be passed the GitHub payload.
- * @param array $expected_events
- *   An array of GitHub event names that the given callable function is able
- *   to handle.
- */
-function project_github_listener_callback($callback, array $expected_events) {
-  $payload = project_github_get_payload();
-  $event = $_SERVER['HTTP_X_GITHUB_EVENT'];
-
-  $result = NULL;
-  $errors = array();
-
-  // Always return an OK for ping requests, which aren't an actual webhook.
-  if ($event === 'ping') {
-    $result = TRUE;
-  }
-  // Check that the callback accepts the given event.
-  elseif (in_array($event, $expected_events)) {
-    $result = $callback($errors, $payload);
-  }
-
-  // Output the results of the callback.
-  if (!isset($result)) {
-    backdrop_add_http_header('Status', '501 Not Implemented');
-    exit(format_string('This URL only supports the following events: "!expected_events". Please remove the "!event" event from the GitHub Webhook configuration.', array('!expected_events' => implode(', ', $expected_events), '!event' => $event)));
-  }
-  elseif ($result === FALSE || !empty($errors)) {
-    backdrop_add_http_header('Status', '500 Failed');
-    print "Unable to process the payload.\n";
-    $full_project_name = isset($payload['repository']['name']) ? $payload['repository']['name'] : NULL;
-    if ($full_project_name) {
-      $github_hook_url = 'https://github.com/' . $full_project_name . '/settings/hooks';
-      $github_delivery = $_SERVER['HTTP_X_GITHUB_DELIVERY'];
-      print "Check the recent GitHub hook requests at $github_hook_url\n";
-      print "X-GitHub-Delivery: $github_delivery\n";
-    }
-    print "\n";
-    print implode("\n\n", $errors);
-    exit();
-  }
-
-  // In the event of no errors and successful response.
-  exit('OK');
-}
-
-/**
- * Access callback for all GitHub event webhooks.
- */
-function project_github_listener_access() {
-  $secret_key = settings_get('project_github_secret_key');
-  $access_token = settings_get('project_github_access_token');
-
-  if (!strlen($access_token)) {
-    backdrop_add_http_header('Status', '403 Access token not configured');
-    exit('A GitHub access token has not be configured for this site. Set one up at https://github.com/settings/applications.');
-  }
-
-  if (strlen($secret_key)) {
-    // If no signature is provided, access is denied.
-    if (empty($_SERVER['HTTP_X_HUB_SIGNATURE'])) {
-      backdrop_add_http_header('Status', '403 Signature required');
-      exit('Signature required for this request. Check the secret key for your webhook.');
-    }
-
-    // Validate the provided signature against the secret key. See the line
-    // where this is encrypted at:
-    // https://github.com/github/github-services/blob/f3bb3dd780feb6318c42b2db064ed6d481b70a1f/lib/service/http_helper.rb#L77
-    $input = file_get_contents('php://input');
-    list($algorithm, $expected_hash) = explode('=', $_SERVER['HTTP_X_HUB_SIGNATURE'], 2);
-    $actual_hash = hash_hmac($algorithm, $input, $secret_key);
-    if ($expected_hash !== $actual_hash) {
-      backdrop_add_http_header('Status', '403 Invalid signature');
-      exit('The provided secret key did not match the server key.');
-    }
-  }
-
-  if (empty($_SERVER['HTTP_X_GITHUB_EVENT'])) {
-    backdrop_add_http_header('Status', '403 Invalid Event');
-    exit('No event header provided.');
-  }
-
-  return TRUE;
-}
-
-/**
- * Get the full payload from the GitHub POST request.
- */
-function project_github_get_payload() {
-  $input = file_get_contents('php://input');
-  // Handle both Form URL-Encoded and JSON input.
-  if (strpos($input, 'payload') === 0) {
-    $parsed_input = array();
-    parse_str($input, $parsed_input);
-    $input = $parsed_input['payload'];
-  }
-  $payload = @json_decode($input, TRUE);
-  if (empty($payload)) {
-    backdrop_add_http_header('Status', '500 Corrupt payload');
-    exit('Corrupt or empty payload.');
-  }
-  return $payload;
-}
-
-/**
- * Project GitHub web hook callback for release events.
- *
- * @param array $errors
- *   An empty array that should be populated with any error information that
- *   occurs during the request.
- * @param array $payload
- *   The GitHub webhook payload.
- * @return bool
- *   TRUE if no error occurred processing the release, FALSE otherwise.
- */
-function _project_github_handle_release(array &$errors, array $payload) {
-  $project_node_result = FALSE;
-  $release_node_result = FALSE;
-  // Create the package zip file. Note this modifies the $payload to include the
-  // new package information.
-  $package_result = _project_github_create_package($errors, $payload);
-
-  // If packaging was successful, create the project node (done only if needed).
-  if ($package_result) {
-    $project_node_result = _project_github_create_project($errors, $payload);
-  }
-
-  // If a project node was created or already exists, create the release with
-  // package created above.
-  if ($project_node_result) {
-    $release_node_result = _project_github_create_project_release($errors, $payload);
-  }
-
-  // For better reporting for project authors who may not have access to the
-  // group-wide web hook settings, attempt to upload a report of the failures
-  // to the release as an asset.
-  if (!empty($errors)) {
-    _project_github_upload_error_log($errors, $payload);
-  }
-
-  return $package_result && $project_node_result && $release_node_result;
-}
-
-/**
  * Given a release event, download the zip, add package info, and reupload.
  *
  * @param array $errors
@@ -162,24 +16,25 @@ function _project_github_handle_release(array &$errors, array $payload) {
  * @return bool
  *   TRUE if the package is modified and uploaded successfully. FALSE otherwise.
  */
-function _project_github_create_package(array &$errors, array &$payload) {
-  $access_token = settings_get('project_github_access_token');
+function _project_github_create_package(array &$errors, object &$payload) {
+  // Get access token from githubapi.
+  $access_token = githubapi_get_token();
 
   // The name of the project, e.g. "webform".
-  $project_name = $payload['repository']['name'];
+  $project_name = $payload->repository->name;
 
   // The release tag name. We accept both with and without a "v" prefix and
   // major version number. e.g. "1.x-2.0.5", "v2.0.5", or "v1.x-2.0.5".
-  $tag_name = $payload['release']['tag_name'];
+  $tag_name = $payload->release->tag_name;
 
   // The URL to the source zip archive that will be parsed.
-  $source_zip_url = $payload['release']['zipball_url'];
+  $source_zip_url = $payload->release->zipball_url;
 
   // The URL that lists all the current assets on the GitHub release.
-  $assets_url = $payload['release']['assets_url'];
+  $assets_url = $payload->release->assets_url;
 
   // The URL to which the archive will be uploaded when processing is finished.
-  $upload_url = $payload['release']['upload_url'];
+  $upload_url = $payload->release->upload_url;
 
   // Remove any leading "v" from the tag.
   $tag_name = ltrim($tag_name, 'v');
@@ -341,9 +196,9 @@ function _project_github_create_package(array &$errors, array &$payload) {
  *   The one of the constants: GITHUB_PROJECT_CREATED, GITHUB_PROJECT_EXISTS, or
  *   GITHUB_PROJECT_FAILED (FALSE).
  */
-function _project_github_create_project(array &$errors, array $payload) {
+function _project_github_create_project(array &$errors, object $payload) {
   // Check if we even have a project that matches for making a release.
-  $project_node = project_github_load_project($payload['repository']['full_name']);
+  $project_node = project_github_load_project($payload->repository->full_name);
   if ($project_node) {
     return GITHUB_PROJECT_EXISTS;
   }
@@ -357,14 +212,14 @@ function _project_github_create_project(array &$errors, array $payload) {
 
   $project_node = new Node(array(
     'type' => $type,
-    'title' => $payload['repository']['name'],
+    'title' => $payload->repository->name,
     'uid' => 1,
     'status' => 1,
     'project' => array(
-      'name' => $payload['repository']['name'],
+      'name' => $payload->repository->name,
       'sandbox' => 0,
       'releases_enabled' => 1,
-      'github_path' => $payload['repository']['full_name'],
+      'github_path' => $payload->repository->full_name,
       'github_sync_readme' => 1,
     ),
   ));
@@ -401,11 +256,11 @@ function _project_github_create_project(array &$errors, array $payload) {
  * @return bool
  *   TRUE if the release node is created. FALSE otherwise.
  */
-function _project_github_create_project_release(array &$errors, array $payload) {
+function _project_github_create_project_release(array &$errors, object $payload) {
   $success = TRUE;
 
   // Check if we even have a project that matches for making a release.
-  $project_node = project_github_load_project($payload['repository']['full_name']);
+  $project_node = project_github_load_project($payload->repository->full_name);
   if (!$project_node) {
     return $success;
   }
@@ -427,32 +282,32 @@ function _project_github_create_project_release(array &$errors, array $payload) 
     return $success;
   }
 
-  $tag_name = $payload['release']['tag_name'];
+  $tag_name = $payload->release->tag_name;
 
   // Determine the release zip file, whether it's the first "asset" or the
   // zipball_url otherwise.
   $zip_url = '';
   $zip_size = NULL;
-  foreach ($payload['release']['assets'] as $asset) {
+  foreach ($payload->release->assets as $asset) {
     if (strpos($asset['content_type'], 'zip') !== FALSE) {
       $zip_url = $asset['browser_download_url'];
       $zip_size = $asset['size'];
     }
   }
   if (empty($zip_url)) {
-    $zip_url = $payload['release']['zipball_url'];
+    $zip_url = $payload->release->zipball_url;
     $zip_size = NULL; // Not provided by GitHub currently.
   }
 
   // Check that we're not about to overwrite an existing node. We will update
   // the existing node with the same version string if applicable.
-  $existing_nid = db_query("SELECT nid FROM {project_release} WHERE version = :version AND project_nid = :project_nid", array(':version' => $payload['release']['tag_name'], ':project_nid' => $project_node->nid))->fetchField();
+  $existing_nid = db_query("SELECT nid FROM {project_release} WHERE version = :version AND project_nid = :project_nid", array(':version' => $payload->release->tag_name, ':project_nid' => $project_node->nid))->fetchField();
   if ($existing_nid) {
     $node = node_load($existing_nid);
   }
   else {
     $node = new Node(array(
-      'title' => $project_node->project['name'] . ' ' . $payload['release']['tag_name'],
+      'title' => $project_node->project['name'] . ' ' . $payload->release->tag_name,
       'type' => $release_type_name,
       'uid' => $project_node->uid,
       'project_release' => array(),
@@ -463,7 +318,7 @@ function _project_github_create_project_release(array &$errors, array $payload) 
   $project_release_data = array(
     'project_nid' => $project_node->nid,
     'version' => $tag_name,
-    'release_link' => $payload['release']['html_url'],
+    'release_link' => $payload->release->html_url,
     'download_link' => $zip_url,
     'download_size' => $zip_size,
     // @todo: Support copying the release notes locally.
@@ -529,11 +384,12 @@ function _project_github_create_project_release(array &$errors, array $payload) 
  * Attach an error log to a GitHub release.
  */
 function _project_github_upload_error_log(array $errors, array $payload) {
-  $access_token = settings_get('project_github_access_token');
+  // Get access token from githubapi.
+  $access_token = githubapi_get_token();
 
   $error_log = '';
   $error_log .= format_string("Errors occurred while packaging this project on !sitename.\n", array('!sitename' => config_get('system.core', 'site_name')));
-  $full_project_name = isset($payload['repository']['name']) ? $payload['repository']['name'] : NULL;
+  $full_project_name = isset($payload->repository->name) ? $payload->repository->name : NULL;
   if ($full_project_name) {
     $github_hook_url = 'https://github.com/' . $full_project_name . '/settings/hooks';
     $github_delivery = $_SERVER['HTTP_X_GITHUB_DELIVERY'];
@@ -545,7 +401,7 @@ function _project_github_upload_error_log(array $errors, array $payload) {
   $error_log .= "\nReported errors:\n";
   $error_log .= implode("\n\n", $errors);
   // Remove the GitHub placeholder name and specify our file name in the URL.
-  $upload_url = preg_replace('/{.*}/', '?name=PACKAGING_ERROR_LOG.txt', $payload['release']['upload_url']);
+  $upload_url = preg_replace('/{.*}/', '?name=PACKAGING_ERROR_LOG.txt', $payload->release->upload_url);
 
   // Upload the new file.
   $upload_result = backdrop_http_request($upload_url, array(
@@ -561,54 +417,6 @@ function _project_github_upload_error_log(array $errors, array $payload) {
 }
 
 /**
- * Project GitHub web hook callback for push events.
- *
- * @param array $errors
- *   An empty array that should be populated with any error information that
- *   occurs during the request.
- * @param array $payload
- *   The GitHub webhook payload.
- * @return bool
- *   TRUE if the package is modified and uploaded successfully. FALSE otherwise.
- */
-function _project_github_handle_push(array &$errors, array $payload) {
-  $result = _project_github_update_readme($errors, $payload);
-  return $result;
-}
-
-/**
- * Given a push event, update the project README.
- *
- * @param array $errors
- *   An empty array that should be populated with any error information that
- *   occurs during the request.
- * @param array $payload
- *   The GitHub webhook payload.
- * @return bool
- *   TRUE if the package is modified and uploaded successfully. FALSE otherwise.
- */
-function _project_github_update_readme(array &$errors, array $payload) {
-  $success = TRUE;
-
-  // Check if we even have a project that matches for making a release.
-  $project_node = project_github_load_project($payload['repository']['full_name']);
-  if (!$project_node || empty($project_node->project['github_sync_readme'])) {
-    return $success;
-  }
-
-  if (project_github_update_readme($project_node)) {
-    $project_node->save();
-    $success = TRUE;
-  }
-  else {
-    $errors['readme'] = t('Updating the node body field with the README content failed.');
-    $success = FALSE;
-  }
-
-  return $success;
-}
-
-/**
  * Update a project node's README from GitHub.
  *
  * @param Node $node
@@ -617,21 +425,8 @@ function _project_github_update_readme(array &$errors, array $payload) {
  *   TRUE if the node has been modified with the updated README.
  */
 function project_github_update_readme(Node &$node) {
-  $access_token = settings_get('project_github_access_token');
-
-  // GitHub doesn't provide a URL for the README, though it is documented under
-  // the "contents" API. See https://developer.github.com/v3/repos/contents/
-  $readme_url = 'https://api.github.com/repos/' . $node->project['github_path'] . '/readme';
-
-  $options = array(
-    'headers' => array(
-      'Authorization' => 'token ' . $access_token,
-      'Accept' => 'application/vnd.github.v3.html',
-    ),
-  );
-  $readme_result = backdrop_http_request($readme_url, $options);
-  if ((int) $readme_result->code === 200) {
-    $readme = $readme_result->data;
+  $githubapi = githubapi_get_class($repo);
+  if($readme = $githubapi->getReadme()){
     // Remove the wrapping div tag (the only one in the README).
     $readme = preg_replace('/(<div[^>]*?>)/ms', '', $readme);
     $readme = str_replace('</div>', '', $readme);
