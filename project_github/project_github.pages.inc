@@ -139,7 +139,7 @@ function _project_github_create_package(array &$errors, object &$payload) {
   ));
   if ($search_result->code == 200) {
     $assets_data = json_decode($search_result->data, TRUE);
-    $payload['release']['assets'] = $assets_data;
+    $payload->release->assets = $assets_data;
     foreach ($assets_data as $asset) {
       if ($asset['name'] === $archive_name) {
         $success = TRUE;
@@ -374,7 +374,7 @@ function _project_github_create_project_release(array &$errors, object $payload)
     watchdog('project_github', 'Created @node_type for @project @tag.', array('@node_type' => $release_type_name, '@project' => $project_node->title, '@tag' => $tag_name), WATCHDOG_INFO);
   }
   else {
-    watchdog('project_github', 'Error creating @node_type @project @tag. <pre>@node</pre>', array('@node_type' => $release_type_name, '@project' => $project_node->title, '@tag' => $payload['release']['tag_name'], '@node' => print_r($node, 1)), WATCHDOG_INFO);
+    watchdog('project_github', 'Error creating @node_type @project @tag. <pre>@node</pre>', array('@node_type' => $release_type_name, '@project' => $project_node->title, '@tag' => $payload->release->tag_name, '@node' => print_r($node, 1)), WATCHDOG_INFO);
     $errors[] = 'Unable to save release node: ' . print_r($node, 1);
   }
   return $success;
@@ -383,7 +383,7 @@ function _project_github_create_project_release(array &$errors, object $payload)
 /**
  * Attach an error log to a GitHub release.
  */
-function _project_github_upload_error_log(array $errors, array $payload) {
+function _project_github_upload_error_log(array $errors, object $payload) {
   // Get access token from githubapi.
   $access_token = githubapi_get_token();
 
