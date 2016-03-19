@@ -4,3 +4,4 @@ type = module
 package = Project
 backdrop = 1.x
 dependencies[] = project_release
+dependencies[] = githubapi
