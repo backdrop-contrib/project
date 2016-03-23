@@ -16,7 +16,7 @@
  * @return bool
  *   TRUE if the package is modified and uploaded successfully. FALSE otherwise.
  */
-function _project_github_create_package(array &$errors, object &$payload) {
+function _project_github_create_package(array &$errors, array &$payload) {
   // Get access token from githubapi.
   $access_token = githubapi_get_token();
 
@@ -196,7 +196,7 @@ function _project_github_create_package(array &$errors, object &$payload) {
  *   The one of the constants: GITHUB_PROJECT_CREATED, GITHUB_PROJECT_EXISTS, or
  *   GITHUB_PROJECT_FAILED (FALSE).
  */
-function _project_github_create_project(array &$errors, object $payload) {
+function _project_github_create_project(array &$errors, array $payload) {
   // Check if we even have a project that matches for making a release.
   $project_node = project_github_load_project($payload['repository']['full_name']);
   if ($project_node) {
@@ -256,7 +256,7 @@ function _project_github_create_project(array &$errors, object $payload) {
  * @return bool
  *   TRUE if the release node is created. FALSE otherwise.
  */
-function _project_github_create_project_release(array &$errors, object $payload) {
+function _project_github_create_project_release(array &$errors, array $payload) {
   $success = TRUE;
 
   // Check if we even have a project that matches for making a release.
