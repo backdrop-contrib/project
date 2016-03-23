@@ -26,8 +26,8 @@
  * @return NULL
  *   No return value.
  */
-function hook_github_project_validate(Node $project_node, array &$errors, object $payload) {
-  if (strpos($payload->repository->full_name, 'module')) {
+function hook_github_project_validate(Node $project_node, array &$errors, array $payload) {
+  if (strpos($payload['repository']['full_name'], 'module')) {
     $project_node->type = 'project_module';
   }
   else {
@@ -61,7 +61,7 @@ function hook_github_project_validate(Node $project_node, array &$errors, object
  * @return NULL
  *   No return value.
  */
-function hook_github_project_validate_release(Node $release_node, array &$errors, object $payload) {
+function hook_github_project_validate_release(Node $release_node, array &$errors, array $payload) {
   $project_node = node_load($release_node->project['release_nid']);
   if ($project_node->type === 'project_module') {
     $release_node->type = 'module_release';

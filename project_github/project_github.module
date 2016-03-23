@@ -18,7 +18,7 @@ function project_github_githubapi_payload($event_name, $record, $repo){
   switch ($event_name) {
     case 'push':
       // Check if we even have a project that matches for making a release.
-      $project_node = project_github_load_project($payload->repository->full_name);
+      $project_node = project_github_load_project($payload['repository']['full_name']);
       if (!$project_node || empty($project_node->project['github_sync_readme'])) {
         return;
       }

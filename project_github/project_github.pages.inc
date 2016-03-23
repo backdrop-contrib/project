@@ -21,20 +21,20 @@ function _project_github_create_package(array &$errors, object &$payload) {
   $access_token = githubapi_get_token();
 
   // The name of the project, e.g. "webform".
-  $project_name = $payload->repository->name;
+  $project_name = $payload['repository']['name'];
 
   // The release tag name. We accept both with and without a "v" prefix and
   // major version number. e.g. "1.x-2.0.5", "v2.0.5", or "v1.x-2.0.5".
-  $tag_name = $payload->release->tag_name;
+  $tag_name = $payload['release']['tag_name'];
 
   // The URL to the source zip archive that will be parsed.
-  $source_zip_url = $payload->release->zipball_url;
+  $source_zip_url = $payload['release']['zipball_url'];
 
   // The URL that lists all the current assets on the GitHub release.
-  $assets_url = $payload->release->assets_url;
+  $assets_url = $payload['release']['assets_url'];
 
   // The URL to which the archive will be uploaded when processing is finished.
-  $upload_url = $payload->release->upload_url;
+  $upload_url = $payload['release']['upload_url'];
 
   // Remove any leading "v" from the tag.
   $tag_name = ltrim($tag_name, 'v');
@@ -139,7 +139,7 @@ function _project_github_create_package(array &$errors, object &$payload) {
   ));
   if ($search_result->code == 200) {
     $assets_data = json_decode($search_result->data, TRUE);
-    $payload->release->assets = $assets_data;
+    $payload['release']['assets'] = $assets_data;
     foreach ($assets_data as $asset) {
       if ($asset['name'] === $archive_name) {
         $success = TRUE;
@@ -198,7 +198,7 @@ function _project_github_create_package(array &$errors, object &$payload) {
  */
 function _project_github_create_project(array &$errors, object $payload) {
   // Check if we even have a project that matches for making a release.
-  $project_node = project_github_load_project($payload->repository->full_name);
+  $project_node = project_github_load_project($payload['repository']['full_name']);
   if ($project_node) {
     return GITHUB_PROJECT_EXISTS;
   }
@@ -212,14 +212,14 @@ function _project_github_create_project(array &$errors, object $payload) {
 
   $project_node = new Node(array(
     'type' => $type,
-    'title' => $payload->repository->name,
+    'title' => $payload['repository']['name'],
     'uid' => 1,
     'status' => 1,
     'project' => array(
-      'name' => $payload->repository->name,
+      'name' => $payload['repository']['name'],
       'sandbox' => 0,
       'releases_enabled' => 1,
-      'github_path' => $payload->repository->full_name,
+      'github_path' => $payload['repository']['full_name'],
       'github_sync_readme' => 1,
     ),
   ));
@@ -260,7 +260,7 @@ function _project_github_create_project_release(array &$errors, object $payload)
   $success = TRUE;
 
   // Check if we even have a project that matches for making a release.
-  $project_node = project_github_load_project($payload->repository->full_name);
+  $project_node = project_github_load_project($payload['repository']['full_name']);
   if (!$project_node) {
     return $success;
   }
@@ -282,32 +282,32 @@ function _project_github_create_project_release(array &$errors, object $payload)
     return $success;
   }
 
-  $tag_name = $payload->release->tag_name;
+  $tag_name = $payload['release']['tag_name'];
 
   // Determine the release zip file, whether it's the first "asset" or the
   // zipball_url otherwise.
   $zip_url = '';
   $zip_size = NULL;
-  foreach ($payload->release->assets as $asset) {
+  foreach ($payload['release']['assets'] as $asset) {
     if (strpos($asset['content_type'], 'zip') !== FALSE) {
       $zip_url = $asset['browser_download_url'];
       $zip_size = $asset['size'];
     }
   }
   if (empty($zip_url)) {
-    $zip_url = $payload->release->zipball_url;
+    $zip_url = $payload['release']['zipball_url'];
     $zip_size = NULL; // Not provided by GitHub currently.
   }
 
   // Check that we're not about to overwrite an existing node. We will update
   // the existing node with the same version string if applicable.
-  $existing_nid = db_query("SELECT nid FROM {project_release} WHERE version = :version AND project_nid = :project_nid", array(':version' => $payload->release->tag_name, ':project_nid' => $project_node->nid))->fetchField();
+  $existing_nid = db_query("SELECT nid FROM {project_release} WHERE version = :version AND project_nid = :project_nid", array(':version' => $payload['release']['tag_name'], ':project_nid' => $project_node->nid))->fetchField();
   if ($existing_nid) {
     $node = node_load($existing_nid);
   }
   else {
     $node = new Node(array(
-      'title' => $project_node->project['name'] . ' ' . $payload->release->tag_name,
+      'title' => $project_node->project['name'] . ' ' . $payload['release']['tag_name'],
       'type' => $release_type_name,
       'uid' => $project_node->uid,
       'project_release' => array(),
@@ -318,7 +318,7 @@ function _project_github_create_project_release(array &$errors, object $payload)
   $project_release_data = array(
     'project_nid' => $project_node->nid,
     'version' => $tag_name,
-    'release_link' => $payload->release->html_url,
+    'release_link' => $payload['release']['html_url'],
     'download_link' => $zip_url,
     'download_size' => $zip_size,
     // @todo: Support copying the release notes locally.
@@ -374,7 +374,7 @@ function _project_github_create_project_release(array &$errors, object $payload)
     watchdog('project_github', 'Created @node_type for @project @tag.', array('@node_type' => $release_type_name, '@project' => $project_node->title, '@tag' => $tag_name), WATCHDOG_INFO);
   }
   else {
-    watchdog('project_github', 'Error creating @node_type @project @tag. <pre>@node</pre>', array('@node_type' => $release_type_name, '@project' => $project_node->title, '@tag' => $payload->release->tag_name, '@node' => print_r($node, 1)), WATCHDOG_INFO);
+    watchdog('project_github', 'Error creating @node_type @project @tag. <pre>@node</pre>', array('@node_type' => $release_type_name, '@project' => $project_node->title, '@tag' => $payload['release']['tag_name'], '@node' => print_r($node, 1)), WATCHDOG_INFO);
     $errors[] = 'Unable to save release node: ' . print_r($node, 1);
   }
   return $success;
@@ -389,7 +389,7 @@ function _project_github_upload_error_log(array $errors, object $payload) {
 
   $error_log = '';
   $error_log .= format_string("Errors occurred while packaging this project on !sitename.\n", array('!sitename' => config_get('system.core', 'site_name')));
-  $full_project_name = isset($payload->repository->name) ? $payload->repository->name : NULL;
+  $full_project_name = isset($payload['repository']['name']) ? $payload['repository']['name'] : NULL;
   if ($full_project_name) {
     $github_hook_url = 'https://github.com/' . $full_project_name . '/settings/hooks';
     $github_delivery = $_SERVER['HTTP_X_GITHUB_DELIVERY'];
@@ -401,7 +401,7 @@ function _project_github_upload_error_log(array $errors, object $payload) {
   $error_log .= "\nReported errors:\n";
   $error_log .= implode("\n\n", $errors);
   // Remove the GitHub placeholder name and specify our file name in the URL.
-  $upload_url = preg_replace('/{.*}/', '?name=PACKAGING_ERROR_LOG.txt', $payload->release->upload_url);
+  $upload_url = preg_replace('/{.*}/', '?name=PACKAGING_ERROR_LOG.txt', $payload['release']['upload_url']);
 
   // Upload the new file.
   $upload_result = backdrop_http_request($upload_url, array(
