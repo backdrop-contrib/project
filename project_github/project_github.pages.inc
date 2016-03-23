@@ -383,7 +383,7 @@ function _project_github_create_project_release(array &$errors, array $payload) 
 /**
  * Attach an error log to a GitHub release.
  */
-function _project_github_upload_error_log(array $errors, object $payload) {
+function _project_github_upload_error_log(array $errors, array $payload) {
   // Get access token from githubapi.
   $access_token = githubapi_get_token();
 
