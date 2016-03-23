@@ -425,7 +425,9 @@ function _project_github_upload_error_log(array $errors, array $payload) {
  *   TRUE if the node has been modified with the updated README.
  */
 function project_github_update_readme(Node &$node) {
-  $githubapi = githubapi_get_class($node->project['github_path']);
+  // Convert OWNER/REPO to array.
+  $repo = project_github_convert_full_name($node->project['github_path']);
+  $githubapi = githubapi_get_class($repo);
   if ($readme = $githubapi->getReadme()) {
     // Remove the wrapping div tag (the only one in the README).
     $readme = preg_replace('/(<div[^>]*?>)/ms', '', $readme);
@@ -454,4 +456,26 @@ function project_github_update_readme(Node &$node) {
     return TRUE;
   }
   return FALSE;
+}
+
+/**
+ * Convert full_name to array.
+ *
+ * @param $repository_full_name
+ *   full_name property for repository arrived from GitHub API.
+ * @return array
+ *   - owner: repository owner.
+ *   - name: repository name.
+ *   FALSE if input string is not OWNER/REPO format
+ */
+function project_github_convert_full_name($repository_full_name) {
+  $path_elements = explode("/", $repository_full_name);
+  if (count($path_elements) != 2) {
+    return FALSE;
+  }
+  
+  return array(
+    'owner' => $path_elements[0],
+    'name' => $path_elements[1],
+  );
 }
