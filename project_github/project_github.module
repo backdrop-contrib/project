@@ -12,7 +12,7 @@ define('GITHUB_PROJECT_FAILED', FALSE);
 /**
  * Implements hook_githubapi_payload().
  */
-function project_github_githubapi_payload($event_name, $record, $repo){
+function project_github_githubapi_payload($event_name, $record, $repo) {
   $payload = $record['data'];
   module_load_include('inc', 'project_github', 'project_github.pages');
   switch ($event_name) {

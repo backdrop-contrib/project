@@ -425,8 +425,8 @@ function _project_github_upload_error_log(array $errors, array $payload) {
  *   TRUE if the node has been modified with the updated README.
  */
 function project_github_update_readme(Node &$node) {
-  $githubapi = githubapi_get_class($repo);
-  if($readme = $githubapi->getReadme()){
+  $githubapi = githubapi_get_class($node->project['github_path']);
+  if ($readme = $githubapi->getReadme()) {
     // Remove the wrapping div tag (the only one in the README).
     $readme = preg_replace('/(<div[^>]*?>)/ms', '', $readme);
     $readme = str_replace('</div>', '', $readme);
