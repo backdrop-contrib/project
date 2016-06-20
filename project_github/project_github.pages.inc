@@ -95,87 +95,23 @@ function _project_github_create_package(array &$errors, array &$payload) {
     $archive->addFile($file->uri, $relative_path);
   }
   $archive->close();
+  
+  // Remove "1.x-" from the tag.
+  $short_tag_name = preg_replace('/^(v?\d+\.x\-)/', '', $tag_name);
+  $archive_title = "Download $project_name $short_tag_name (zip)";
+  
+  $success = project_github_add_release_zip($payload['repository']['full_name'], $tag_name, $archive_name, $archive_title, file_get_contents($archive_path));
 
-  // Remove the GitHub placeholder name and specify our file name in the URL.
-  $upload_url = preg_replace('/{.*}/', '', $upload_url);
-  $upload_url .= '?name=' . $archive_name;
-
-  // Upload the new file.
-  $upload_result = backdrop_http_request($upload_url, array(
-    'headers' => array(
-      'Authorization' => 'token ' . $access_token,
-      'Content-Type' => 'application/zip',
-    ),
-    'method' => 'POST',
-    'data' => file_get_contents($archive_path),
-  ));
-
+  
   // Delete the working directory (including the new archive).
   file_unmanaged_delete_recursive($directory);
 
-  $success = FALSE;
-  $asset_url = NULL;
-
-  // Successful upload.
-  if ($upload_result->code == 201) {
-    $success = TRUE;
-    $asset_url = $result->data['url'];
-  }
-  // If a file by the same name already exists, assume it is acceptable.
-  elseif ($upload_result->code == 400 && $upload_result->error === 'status code 422') {
-    $success = TRUE;
-  }
-  // GitHub can sometimes return a 502 even when the upload was successful.
-  // See https://github.com/jutzig/github-release-plugin/issues/5.
-  // Check if the file was uploaded regardless of the error.
-  $search_result = backdrop_http_request($assets_url, array(
-    'headers' => array(
-      'Authorization' => 'token ' . $access_token,
-    ),
-  ));
-  if ($search_result->code == 200) {
-    $assets_data = json_decode($search_result->data, TRUE);
-    $payload['release']['assets'] = $assets_data;
-    foreach ($assets_data as $asset) {
-      if ($asset['name'] === $archive_name) {
-        $success = TRUE;
-        $asset_url = $asset['url'];
-        break;
-      }
-    }
-  }
-
-  // Rename the label of the package for clarity.
-  // https://developer.github.com/v3/repos/releases/#edit-a-release-asset
-  if ($success && $asset_url) {
-    // Remove "1.x-" from the tag.
-    $short_tag_name = preg_replace('/^(v?\d+\.x\-)/', '', $tag_name);
-    $query = array(
-      'name' => $archive_name,
-      'label' => "Download $project_name $short_tag_name (zip)",
-    );
-    $rename_result = backdrop_http_request($asset_url, array(
-      'method' => 'PATCH',
-      'data' => json_encode($query),
-      'headers' => array(
-        'Authorization' => 'token ' . $access_token,
-      ),
-    ));
-    $success = $rename_result->code == 200;
-  }
 
   if ($success) {
     watchdog('project_github', 'Successfully created release for @project @tag and pushed the package to GitHub.', array('@project' => $project_name, '@tag' => $tag_name), WATCHDOG_INFO);
   }
   else {
     watchdog('project_github', 'Error creating release for @project @tag.', array('@project' => $project_name, '@tag' => $tag_name), WATCHDOG_INFO);
-    $errors[] = 'Upload HTTP request: ' . print_r($upload_result, 1);
-    if (isset($search_result)) {
-      $errors[] = 'Asset list request: ' . print_r($search_result, 1);
-    }
-    if (isset($rename_result)) {
-      $errors[] = 'Rename asset request: ' . print_r($rename_result, 1);
-    }
   }
   return $success;
 }
@@ -488,10 +424,35 @@ function project_github_convert_full_name($repository_full_name) {
  *   FALSE if failed to download
  */
 function project_github_get_releaze_zip($repository_full_name, $tag){
-  $repo = project_github_convert_full_name($node->project['github_path']);
+  $repo = project_github_convert_full_name($repository_full_name);
   $githubapi = githubapi_get_class($repo);
   if($code = $githubapi->getArchive(array(':ref' => $tag))) {
     return $code;
   }
   return FALSE;
+}
+
+/**
+ * Post new asset to release.
+ *
+ * @param $repository_full_name
+ *   full_name property for repository arrived from GitHub API.
+ * @param $tag
+ *   tag name for requested zip file.
+ * @return text
+ *   zip file content
+ *   FALSE if failed to download
+ */
+function project_github_add_release_zip($repository_full_name, $tag, $filename, $label, $content){
+  $repo = project_github_convert_full_name($repository_full_name);
+  $githubapi = githubapi_get_class($repo);
+  
+  $add_asset = array(
+    ":tag" => $tag,
+    'label' => $label,
+    'filename'  => $filename,
+    'content' => $content,
+  );
+  
+  return $githubapi->addAsset($add_asset);
 }
