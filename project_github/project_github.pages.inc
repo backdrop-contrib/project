@@ -44,15 +44,11 @@ function _project_github_create_package(array &$errors, array &$payload) {
   $directory = tempnam($tempdir, 'project_pkg_');
   unlink($directory);
   mkdir($directory);
+  
+  $zip_data = project_github_get_releaze_zip($payload['repository']['full_name'], $tag_name);
 
-  // Copy the file down locally.
-  $result = backdrop_http_request($source_zip_url, array(
-    'headers' => array(
-      'Authorization' => 'token ' . $access_token,
-    ),
-  ));
-  if ($result->code == 200) {
-    file_put_contents($directory . '/original.zip', $result->data);
+  if (FALSE !== $zip_data) {
+    file_put_contents($directory . '/original.zip', $zip_data);
   }
   $archive = new ZipArchive();
   $archive->open($directory . '/original.zip');
@@ -478,4 +474,24 @@ function project_github_convert_full_name($repository_full_name) {
     'owner' => $path_elements[0],
     'name' => $path_elements[1],
   );
+}
+
+/**
+ * Get content of Zip file for release by tag name.
+ *
+ * @param $repository_full_name
+ *   full_name property for repository arrived from GitHub API.
+ * @param $tag
+ *   tag name for requested zip file.
+ * @return text
+ *   zip file content
+ *   FALSE if failed to download
+ */
+function project_github_get_releaze_zip($repository_full_name, $tag){
+  $repo = project_github_convert_full_name($node->project['github_path']);
+  $githubapi = githubapi_get_class($repo);
+  if($code = $githubapi->getArchive(array(':ref' => $tag))) {
+    return $code;
+  }
+  return FALSE;
 }
