@@ -17,24 +17,12 @@
  *   TRUE if the package is modified and uploaded successfully. FALSE otherwise.
  */
 function _project_github_create_package(array &$errors, array &$payload) {
-  // Get access token from githubapi.
-  $access_token = githubapi_get_token();
-
   // The name of the project, e.g. "webform".
   $project_name = $payload['repository']['name'];
 
   // The release tag name. We accept both with and without a "v" prefix and
   // major version number. e.g. "1.x-2.0.5", "v2.0.5", or "v1.x-2.0.5".
   $tag_name = $payload['release']['tag_name'];
-
-  // The URL to the source zip archive that will be parsed.
-  $source_zip_url = $payload['release']['zipball_url'];
-
-  // The URL that lists all the current assets on the GitHub release.
-  $assets_url = $payload['release']['assets_url'];
-
-  // The URL to which the archive will be uploaded when processing is finished.
-  $upload_url = $payload['release']['upload_url'];
 
   // Remove any leading "v" from the tag.
   $tag_name = ltrim($tag_name, 'v');
@@ -44,12 +32,15 @@ function _project_github_create_package(array &$errors, array &$payload) {
   $directory = tempnam($tempdir, 'project_pkg_');
   unlink($directory);
   mkdir($directory);
-  
-  $zip_data = project_github_get_releaze_zip($payload['repository']['full_name'], $tag_name);
 
-  if (FALSE !== $zip_data) {
-    file_put_contents($directory . '/original.zip', $zip_data);
+  $zip_data = project_github_get_release_zip($payload['repository']['full_name'], $tag_name);
+  if ($zip_data === FALSE) {
+    $error = format_string('Failed to download ZIP archive for @project @tag_name.', array('@project' => $project_name, '@tag_name' => $tag_name));
+    watchdog('project_github', $error, array(), WATCHDOG_INFO);
+    return $errors;
   }
+
+  file_put_contents($directory . '/original.zip', $zip_data);
   $archive = new ZipArchive();
   $archive->open($directory . '/original.zip');
   $archive->extractTo($directory);
@@ -95,17 +86,15 @@ function _project_github_create_package(array &$errors, array &$payload) {
     $archive->addFile($file->uri, $relative_path);
   }
   $archive->close();
-  
+
   // Remove "1.x-" from the tag.
   $short_tag_name = preg_replace('/^(v?\d+\.x\-)/', '', $tag_name);
   $archive_title = "Download $project_name $short_tag_name (zip)";
-  
+
   $success = project_github_add_release_zip($payload['repository']['full_name'], $tag_name, $archive_name, $archive_title, file_get_contents($archive_path));
 
-  
   // Delete the working directory (including the new archive).
   file_unmanaged_delete_recursive($directory);
-
 
   if ($success) {
     watchdog('project_github', 'Successfully created release for @project @tag and pushed the package to GitHub.', array('@project' => $project_name, '@tag' => $tag_name), WATCHDOG_INFO);
@@ -405,7 +394,7 @@ function project_github_convert_full_name($repository_full_name) {
   if (count($path_elements) != 2) {
     return FALSE;
   }
-  
+
   return array(
     'owner' => $path_elements[0],
     'name' => $path_elements[1],
@@ -415,19 +404,19 @@ function project_github_convert_full_name($repository_full_name) {
 /**
  * Get content of Zip file for release by tag name.
  *
- * @param $repository_full_name
+ * @param string $repository_full_name
  *   full_name property for repository arrived from GitHub API.
- * @param $tag
+ * @param string $tag
  *   tag name for requested zip file.
- * @return text
- *   zip file content
- *   FALSE if failed to download
+ * @return string|FALSE
+ *   The zip file content as a string if the archive was found. FALSE if failed
+ *   to download.
  */
-function project_github_get_releaze_zip($repository_full_name, $tag){
+function project_github_get_release_zip($repository_full_name, $tag) {
   $repo = project_github_convert_full_name($repository_full_name);
   $githubapi = githubapi_get_class($repo);
-  if($code = $githubapi->getArchive(array(':ref' => $tag))) {
-    return $code;
+  if ($archive_contents = $githubapi->getArchive(array(':ref' => $tag))) {
+    return $archive_contents;
   }
   return FALSE;
 }
@@ -435,24 +424,30 @@ function project_github_get_releaze_zip($repository_full_name, $tag){
 /**
  * Post new asset to release.
  *
- * @param $repository_full_name
- *   full_name property for repository arrived from GitHub API.
- * @param $tag
- *   tag name for requested zip file.
- * @return text
- *   zip file content
- *   FALSE if failed to download
+ * @param string $repository_full_name
+ *   The full_name property for repository arrived from GitHub API.
+ * @param string $tag
+ *   The tag name for requested zip file.
+ * @param string $filename
+ *   The file name of the attachment when shown on the GitHub release.
+ * @param string $label
+ *   The label of the attachment when shown on the GitHub release.
+ * @param string $content
+ *   The full content of the archive as a string.
+ * @return string|FALSE
+ *   The zip file content as a string if the archive was found. FALSE if failed
+ *   to download.
  */
-function project_github_add_release_zip($repository_full_name, $tag, $filename, $label, $content){
+function project_github_add_release_zip($repository_full_name, $tag, $filename, $label, $content) {
   $repo = project_github_convert_full_name($repository_full_name);
   $githubapi = githubapi_get_class($repo);
-  
+
   $add_asset = array(
     ":tag" => $tag,
     'label' => $label,
-    'filename'  => $filename,
+    'filename' => $filename,
     'content' => $content,
   );
-  
+
   return $githubapi->addAsset($add_asset);
 }
