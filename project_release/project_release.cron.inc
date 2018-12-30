@@ -164,6 +164,7 @@ function project_release_history_generate_project_xml(Node $project_node, $versi
 
       // API-specific file.
       $release_version_api = $release_node->project_release['version_api'];
+      backdrop_alter('project_release_release_xml', $release_meta, $release_node, $project_node);
       if ($release_version_api) {
         $releases_xml[$release_version_api][] = $release_meta;
       }
