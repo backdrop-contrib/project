@@ -71,13 +71,13 @@ function project_release_release_create_history($project_nid = NULL) {
         // Include a list of supported API versions for this project.
         $project_api_versions = db_query('SELECT DISTINCT version_api FROM project_release WHERE project_nid = :nid', array(':nid' => $project->nid))->fetchCol();
         foreach ($project_api_versions as $api_version) {
-          $project_meta['api_versions'][] = array(
+          $project_meta['value']['api_versions'][] = array(
             'key' => 'api_version',
             'value' => $api_version,
           );
         }
       }
-      backdrop_alter('project_release_project_xml', $project_meta, $project, $project_api_versions);
+      backdrop_alter('project_release_project_list_xml', $project_meta, $project, $project_api_versions);
       $all_projects_meta[$project->nid] = $project_meta;
     }
     if (empty($all_projects_meta)) {
