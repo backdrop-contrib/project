@@ -83,13 +83,14 @@ function project_release_release_create_history($project_nid = NULL) {
     if (empty($all_projects_meta)) {
       return watchdog('project_release', 'No projects found on this server.');
     }
-    $all_projects_meta += array(
+    $all_projects_meta = array(array(
       'key' => 'projects',
       // Dublin core namespace according to http://dublincore.org/documents/dcmi-namespace/
       'attributes' => array(
         'xmlns:dc' => 'http://purl.org/dc/elements/1.1/',
       ),
-    );
+      'value' => $all_projects_meta,
+    ));
 
     project_release_history_write_xml($all_projects_meta);
   }
