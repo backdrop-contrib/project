@@ -56,12 +56,14 @@ function project_release_release_create_history($project_nid = NULL) {
     foreach ($all_projects as $project) {
       $project_meta = array(
         'key' => 'project',
-        'title' => $project->title,
-        'short_name' => $project->machine_name,
-        'link' => url('node/' . $project->nid, array('absolute' => TRUE)),
-        'dc:creator' => $project->username,
-        'type' => $project->type,
-        'project_status' => $project->status ? 'published' : 'unpublished',
+        'value' => array(
+          'title' => $project->title,
+          'short_name' => $project->machine_name,
+          'link' => url('node/' . $project->nid, array('absolute' => TRUE)),
+          'dc:creator' => $project->username,
+          'type' => $project->type,
+          'project_status' => $project->status ? 'published' : 'unpublished',
+        ),
       );
       if ($project->status) {
         $api_versions_meta = array();
@@ -76,7 +78,7 @@ function project_release_release_create_history($project_nid = NULL) {
         }
       }
       backdrop_alter('project_release_project_xml', $project_meta, $project, $project_api_versions);
-      $all_projects_meta[$project['nid']] = $project_meta;
+      $all_projects_meta[$project->nid] = $project_meta;
     }
     if (empty($all_projects_meta)) {
       return watchdog('project_release', 'No projects found on this server.');
@@ -119,12 +121,14 @@ function project_release_history_generate_project_xml(Node $project_node, $versi
     foreach (project_release_query_releases($project_node->nid, $version_api) as $release_node) {
       $release_meta = array(
         'key' => 'release',
-        'name' => $release_node->title,
-        'version' => $release_node->project_release['version'],
-        'status' => $release_node->status ? 'published' : 'unpublished',
-        'date' => $release_node->created,
-        'filesize' => $release_node->project_release['download_size'],
-        'security_update' => $release_node->project_release['security_update'] ? 'true' : 'false',
+        'value' => array(
+          'name' => $release_node->title,
+          'version' => $release_node->project_release['version'],
+          'status' => $release_node->status ? 'published' : 'unpublished',
+          'date' => $release_node->created,
+          'filesize' => $release_node->project_release['download_size'],
+          'security_update' => $release_node->project_release['security_update'] ? 'true' : 'false',
+        ),
       );
       foreach (array('major', 'minor', 'patch', 'extra') as $version_type) {
         $version_type = 'version_' . $version_type;
@@ -133,15 +137,15 @@ function project_release_history_generate_project_xml(Node $project_node, $versi
         // *not* want to include anything in the release history XML if the
         // value is an empty string.
         if (isset($release_node->project_release[$version_type]) && $release_node->project_release[$version_type] !== '') {
-          $release_meta[$version_type] = $release_node->project_release[$version_type];
+          $release_meta['value'][$version_type] = $release_node->project_release[$version_type];
         }
       }
 
       if ($release_node->status) {
         // Published, so we should include the links.
         $release_link = !empty($release_node->project_release['release_link']) ? $release_node->project_release['release_link'] : url('node/' . $release_node->nid, array('absolute' => TRUE));
-        $release_meta['release_link'] = $release_link;
-        $release_meta['download_link'] = $release_node->project_release['download_link'];
+        $release_meta['value']['release_link'] = $release_link;
+        $release_meta['value']['download_link'] = $release_node->project_release['download_link'];
       }
 
       // Backwards-compatibility: Provide security update information as a
@@ -169,11 +173,6 @@ function project_release_history_generate_project_xml(Node $project_node, $versi
 
   foreach ($releases_xml as $release_version_api => $release_meta) {
     $project_meta = array(
-      'key' => 'project',
-      // Dublin core namespace according to http://dublincore.org/documents/dcmi-namespace/
-      'attributes' => array(
-        'xmlns:dc' => 'http://purl.org/dc/elements/1.1/',
-      ),
       'title' => $project_node->title,
       'short_name' => $project_node->project['name'],
       'dc:creator' => $project_node->name,
@@ -212,8 +211,13 @@ function project_release_history_generate_project_xml(Node $project_node, $versi
       $project_meta['releases'] = $release_meta;
     }
 
-    backdrop_alter('project_release_project_xml', $project_meta, $project_node, $release_version_api);
-    project_release_history_write_xml($project_meta, $project_node, $release_version_api);
+    $project = array(0 => array(
+      'key' => 'project',
+      'attributes' => array('xmlns:dc' => 'http://purl.org/dc/elements/1.1/'),
+      'value' => $project_meta,
+    ));
+    backdrop_alter('project_release_project_xml', $project, $project_node, $release_version_api);
+    project_release_history_write_xml($project, $project_node, $release_version_api);
   }
 }
 
