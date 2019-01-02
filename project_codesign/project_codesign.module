@@ -36,7 +36,7 @@ function project_codesign_project_release_release_xml_alter(&$project_meta, $rel
   $sig_list = array();
   $signers = project_codesign_get_active_signature_profiles();
   foreach ($signers as $signer => $signer_info) {
-    $signature = project_codesign_sign_url($signer_info['crypto_engine'], $signer_info['profile_id'], $release, $project_values['date'], $project_meta['download_link']);
+    $signature = project_codesign_sign_url($signer_info['crypto_engine'], $signer_info['profile_id'], $release, $project_values['date'], $project_values['download_link']);
     if ($signature) {
       $sig_list[] = array(
         'key' => 'signature',
@@ -74,7 +74,8 @@ function project_codesign_project_release_release_xml_alter(&$project_meta, $rel
  *   The name of the codesign module (e.g., codesign_gnupg) signing the package.
  * @param $profile_id
  *   The profile ID that should sign the package as returned by
- *   codesign_get_profiles().  Typically, this is the key ID of the signing key.
+ *   codesign_get_signing_profiles().  Typically, this is the key ID of the
+ *   signing key.
  * @param $release
  *   The project_release node.
  * @param $timestamp
@@ -86,11 +87,11 @@ function project_codesign_project_release_release_xml_alter(&$project_meta, $rel
  * @return
  *   Returns a string with the signature on success, NULL on failure.
  *
- * @see codesign_get_profiles()
+ * @see codesign_get_signing_profiles()
  * @see codesign_sign()
  */
 function project_codesign_sign_url($crypto_engine, $profile_id, $release, $timestamp, $url, $force=FALSE) {
-  if (!$data) {
+  if (!$url) {
     watchdog('project_codesign', 'No data to sign', array(), WATCHDOG_WARNING);
     return;
   }
@@ -105,7 +106,7 @@ function project_codesign_sign_url($crypto_engine, $profile_id, $release, $times
       ->condition('s.version', $release->project_release['version'])
       ->condition('s.release_timestamp', $timestamp)
       ->execute()
-      ->fetchCol();
+      ->fetchColumn();
     if ($existing_sig) {
       return $existing_sig;
     }
