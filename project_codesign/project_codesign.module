@@ -51,7 +51,7 @@ function project_codesign_project_release_release_xml_alter(&$project_meta, $rel
 
   // Add the signatures to the release.
   if ($sig_list) {
-    $project_meta['value']['signatures'] = array(
+    $project_meta['value'][] = array(
       'key' => 'signatures',
       'value' => $sig_list,
     );
