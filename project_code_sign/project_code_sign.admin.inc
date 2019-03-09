@@ -4,8 +4,8 @@
  * @file
  */
 
-function project_codesign_admin_form($form, &$form_state) {
-  $signing_profiles = codesign_get_signing_profiles();
+function project_code_sign_admin_form($form, &$form_state) {
+  $signing_profiles = code_sign_get_signing_profiles();
 
   $headers = array(
     'name' => t('Name'),
@@ -13,8 +13,13 @@ function project_codesign_admin_form($form, &$form_state) {
     'profile_id' => t('Profile ID'),
   );
 
+  $rows = array();
   foreach($signing_profiles as $key => $profile) {
-    $signing_profiles[$key]['name'] = check_plain($profile['name']);
+    $rows[$key] = array(
+      'name' => check_plain($profile['#name']),
+      'crypto_engine' => $profile['#crypto_engine'],
+      'profile_id' => check_plain($key),
+    );
   }
 
   $form['#config'] = 'project_codesign.settings';
@@ -26,10 +31,11 @@ function project_codesign_admin_form($form, &$form_state) {
   $form['enabled_profiles'] = array(
     '#type' => 'tableselect',
     '#header' => $headers,
-    '#options' => $signing_profiles,
+    '#options' => $rows,
     '#empty' => t('No signing keys found.'),
     '#default_value' => config('project_codesign.settings')->get('enabled_profiles'),
   );
 
   return system_settings_form($form);
 }
+

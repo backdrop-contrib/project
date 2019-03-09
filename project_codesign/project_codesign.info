@@ -1,6 +1,0 @@
-name = Project Codesign
-description = Sign project metadata
-backdrop = 1.x
-type = module
-dependencies[] = codesign
-dependencies[] = project_release

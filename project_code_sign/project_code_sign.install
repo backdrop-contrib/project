@@ -3,10 +3,10 @@
 /**
  * Implements hook_schema().
  */
-function project_codesign_schema() {
+function project_code_sign_schema() {
   $schema = array();
 
-  $schema['project_codesign_signatures'] = array(
+  $schema['project_code_sign_signatures'] = array(
     'description' => t('Previously generated signatures for module releases'),
     'fields' => array(
       'sid' => array(
@@ -53,6 +53,7 @@ function project_codesign_schema() {
       'signature' => array(
         'type' => 'text',
         'not null' => TRUE,
+        'serialize' => TRUE,
         'description' => t('The signature itself as added to the XML block.'),
       ),
     ),
@@ -65,3 +66,4 @@ function project_codesign_schema() {
 
   return $schema;
 }
+
