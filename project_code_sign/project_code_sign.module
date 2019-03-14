@@ -23,6 +23,26 @@ function project_code_sign_menu() {
   return $items;
 }
 
+/**
+ * Implements hook_form_FORM_alter for project_release_admin_regenerate_form.
+ */
+function project_code_sign_form_project_release_admin_regenerate_form_alter(&$form, &$form_state) {
+  $form['project_code_sign_regen_sigs'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Regenerate signatures'),
+    '#default_value' => FALSE,
+    '#description' => t('Check this box to delete the signature cache and regenerate the module signatures.'),
+    '#weight' => -10,
+  );
+  array_unshift($form['#submit'], 'project_code_sign_clear_signature_cache');
+}
+
+function project_code_sign_clear_signature_cache($form, &$form_state) {
+  if (!empty($form_state['values']['project_code_sign_regen_sigs'])) {
+    backdrop_set_message('Clearing signature cache.');
+    db_truncate('project_code_sign_signatures')->execute();
+  }
+}
 
 /**
  * Implements hook_project_release_release_xml_alter().
