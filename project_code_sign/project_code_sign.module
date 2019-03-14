@@ -35,9 +35,9 @@ function project_code_sign_project_release_release_xml_alter(&$project_meta, $re
 
   $sig_list = array();
   $signers = project_code_sign_get_active_signature_profiles();
-  dpm($signers);
+
   foreach ($signers as $signer => $signer_info) {
-    $signature = project_code_sign_sign_url($signer_info['#crypto_engine'], $signer_info['#profile_id'], $release, $project_values['date'], $project_values['download_link'], TRUE);
+    $signature = project_code_sign_sign_url($signer_info['#crypto_engine'], $signer_info['#profile_id'], $release, $project_values['date'], $project_values['download_link']);
     if ($signature) {
       $sig_list[] = array(
         'key' => 'signature',
@@ -109,7 +109,7 @@ function project_code_sign_sign_url($crypto_engine, $profile_id, $release, $time
       ->execute()
       ->fetchColumn();
     if ($existing_sig) {
-      return $existing_sig;
+      return unserialize($existing_sig);
     }
   }
 
@@ -138,13 +138,12 @@ function project_code_sign_sign_url($crypto_engine, $profile_id, $release, $time
     'signature' => $signature,
   );
   backdrop_write_record('project_code_sign_signatures', $code_sign_record);
-//function code_sign_sign($signer, $profile, $data, $options = array()) {
-//function code_sign_verify($signer, $data, $signature = NULL, $options = array()) {
 
+  // Verify the signature before returning.
   $result = code_sign_verify($crypto_engine, $data, $signature, $options);
-  dpm($result);
 
-  return $signature;
+  // Only return valid signatures.
+  return $result ? $signature : NULL;
 }
 
 /**
