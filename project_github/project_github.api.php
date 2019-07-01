@@ -70,3 +70,25 @@ function hook_github_project_validate_release(Node $release_node, array &$errors
     $errors['project_type_invalid'] = t('Project releases are only supported on module projects.');
   }
 }
+
+/**
+ * Modify the contents of the GitHub webhook payload.
+ *
+ * @param $project_name
+ *   The name of the project.
+ * @param array $files
+ *   An array representing the files in the payload directory after the payload
+ *   has been unzipped, and the original zip file deleted, and before the new
+ *   archive is created and resent to GitHub.
+ * @return NULL
+ *   No return value.
+ */
+function hook_project_github_create_package_alter($project_name, array $files) {
+  $project_node = node_load($release_node->project['release_nid']);
+  if ($project_node->type === 'project_module') {
+    $release_node->type = 'module_release';
+  }
+  else {
+    $errors['project_type_invalid'] = t('Project releases are only supported on module projects.');
+  }
+}
