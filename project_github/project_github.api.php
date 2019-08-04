@@ -83,12 +83,19 @@ function hook_github_project_validate_release(Node $release_node, array &$errors
  * @return NULL
  *   No return value.
  */
-function hook_project_github_create_package_alter($project_name, array $files) {
-  $project_node = node_load($release_node->project['release_nid']);
-  if ($project_node->type === 'project_module') {
-    $release_node->type = 'module_release';
+function hook_project_github_create_package_alter(array &$files, $project_name) {
+  foreach ($files as $path => $file) {
+    $extension = substr($file->filename, strrpos($file->filename, '.') + 1);
+    if ($extension === 'info' && $file->name == $project_name) {
+      $directory_path = rtrim($path, $file->filename);
+      if (is_dir($directory_path . 'screenshots')) {
+        $screenshots_directory_path = $directory_path . 'screenshots/';
+      }
+    }
   }
-  else {
-    $errors['project_type_invalid'] = t('Project releases are only supported on module projects.');
+  foreach ($files as $path => $file) {
+    if (strrpos($path, $screenshots_directory_path) === 0) {
+      unset($files[$path]);
+    }
   }
 }

@@ -54,7 +54,7 @@ function _project_github_create_package(array &$errors, array &$payload) {
   $files = file_scan_directory($directory, '/.*/', array('nomask' => '/^$/'));
 
   // Allow other modules to modify the files.
-  backdrop_alter('project_github_create_package', $project_name, $files);
+  backdrop_alter('project_github_create_package', $files, $project_name);
 
   // Individually rezip each file, modifying .info files as needed.
   $archive = new ZipArchive();
