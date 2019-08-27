@@ -1,4 +1,8 @@
 <?php
+/**
+ * @file
+ * Install and update routines for project_code_sign.
+ */
 
 /**
  * Implements hook_schema().
@@ -66,4 +70,3 @@ function project_code_sign_schema() {
 
   return $schema;
 }
-

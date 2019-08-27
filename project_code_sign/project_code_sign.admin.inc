@@ -1,9 +1,12 @@
 <?php
-
 /**
  * @file
+ * Administrative pages for Project Code Sign module.
  */
 
+/**
+ * Form callback; Settings for Project Code Sign.
+ */
 function project_code_sign_admin_form($form, &$form_state) {
   $signing_profiles = code_sign_get_signing_profiles();
 
@@ -38,4 +41,3 @@ function project_code_sign_admin_form($form, &$form_state) {
 
   return system_settings_form($form);
 }
-

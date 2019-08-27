@@ -1,7 +1,7 @@
 <?php
-
 /**
  * @file
+ * Signs project release archives with digital signatures.
  */
 
 /**
@@ -10,9 +10,9 @@
 function project_code_sign_menu() {
   $items = array();
 
-  $items['admin/config/project/codesign'] = array(
-    'title' => 'Codesign',
-    'description' => 'Configure module signing settings',
+  $items['admin/config/project/code-sign'] = array(
+    'title' => 'Code sign',
+    'description' => 'Configure project release signing settings.',
     'page callback' => 'backdrop_get_form',
     'page arguments' => array('project_code_sign_admin_form'),
     'access arguments' => array('administer projects'),
@@ -27,7 +27,7 @@ function project_code_sign_menu() {
  * Implements hook_form_FORM_alter for project_release_admin_regenerate_form.
  */
 function project_code_sign_form_project_release_admin_regenerate_form_alter(&$form, &$form_state) {
-  $form['project_code_sign_regen_sigs'] = array(
+  $form['project_code_sign_regenerate'] = array(
     '#type' => 'checkbox',
     '#title' => t('Regenerate signatures'),
     '#default_value' => FALSE,
@@ -37,10 +37,13 @@ function project_code_sign_form_project_release_admin_regenerate_form_alter(&$fo
   array_unshift($form['#submit'], 'project_code_sign_clear_signature_cache');
 }
 
+/**
+ * Additional submit handler for project_release_admin_regenerate_form().
+ */
 function project_code_sign_clear_signature_cache($form, &$form_state) {
-  if (!empty($form_state['values']['project_code_sign_regen_sigs'])) {
-    backdrop_set_message('Clearing signature cache.');
+  if (!empty($form_state['values']['project_code_sign_regenerate'])) {
     db_truncate('project_code_sign_signatures')->execute();
+    backdrop_set_message('Signature cache cleared.');
   }
 }
 
@@ -50,7 +53,6 @@ function project_code_sign_clear_signature_cache($form, &$form_state) {
  * Generate a signature record for the project.
  */
 function project_code_sign_project_release_release_xml_alter(&$project_meta, $release, $project) {
-  $sig_time = time();
   $project_values = $project_meta['value'];
 
   $sig_list = array();
@@ -92,40 +94,40 @@ function project_code_sign_project_release_release_xml_alter(&$project_meta, $re
  * version, release timestamp) of the package.
  *
  * @param $crypto_engine
- *   The name of the codesign module (e.g., code_sign_gnupg) signing the package.
+ *   The name of the module (e.g., code_sign_gnupg) signing the package.
  * @param $profile_id
  *   The profile ID that should sign the package as returned by
  *   code_sign_get_signing_profiles().  Typically, this is the key ID of the
  *   signing key.
  * @param $release
  *   The project_release node.
- * @param $timestamp
+ * @param $release_timestamp
  *   The timestamp of the release.
  * @param $url
  *   The URL of the package to be signed.
  * @param $force
  *   If TRUE, sign even if a version exists in the database.
- * @return
+ * @return string|NULL
  *   Returns a string with the signature on success, NULL on failure.
  *
  * @see code_sign_get_signing_profiles()
  * @see code_sign_sign()
  */
-function project_code_sign_sign_url($crypto_engine, $profile_id, $release, $timestamp, $url, $force=FALSE) {
+function project_code_sign_sign_url($crypto_engine, $profile_id, $release, $release_timestamp, $url, $force = FALSE) {
   if (!$url) {
     watchdog('project_codesign', 'No data to sign', array(), WATCHDOG_WARNING);
     return;
   }
 
   // If the project has already been signed, return the existing signature.
-  if ($timestamp && !$force) {
+  if ($release_timestamp && !$force) {
     $existing_sig = db_select('project_code_sign_signatures', 's')
       ->fields('s', array('signature'))
       ->condition('s.crypto_engine', $crypto_engine)
       ->condition('s.profile_id', $profile_id)
       ->condition('s.release_nid', $release->nid)
       ->condition('s.version', $release->project_release['version'])
-      ->condition('s.release_timestamp', $timestamp)
+      ->condition('s.release_timestamp', $release_timestamp)
       ->execute()
       ->fetchColumn();
     if ($existing_sig) {
@@ -140,7 +142,7 @@ function project_code_sign_sign_url($crypto_engine, $profile_id, $release, $time
     return NULL;
   }
   $data = file_get_contents($file);
-  file_delete($file); // suspect
+  file_unmanaged_delete($file);
 
   $options = array(
     'project' => $release,
@@ -151,7 +153,7 @@ function project_code_sign_sign_url($crypto_engine, $profile_id, $release, $time
   $code_sign_record = array(
     'release_nid' => $release->nid,
     'version' => $release->project_release['version'],
-    'release_timestamp' => $timestamp,
+    'release_timestamp' => $release_timestamp,
     'signature_timestamp' => time(),
     'crypto_engine' => $crypto_engine,
     'profile_id' => $profile_id,
@@ -170,7 +172,7 @@ function project_code_sign_sign_url($crypto_engine, $profile_id, $release, $time
  * Returns a list of active signature profiles.  The signature profiles are
  * selected in the project_codesign admin page.
  *
- * @return
+ * @return array
  *   An array of signature profiles to use when signing.
  *
  * @see code_sign_get_signing_profiles()
@@ -187,4 +189,3 @@ function project_code_sign_get_active_signature_profiles() {
   // Return the list of active profiles that are enabled.
   return array_intersect_key($all_profiles, $selected_profiles);
 }
-
