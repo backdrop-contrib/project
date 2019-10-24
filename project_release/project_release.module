@@ -44,6 +44,15 @@ function project_release_init() {
 function project_release_menu() {
   $items = array();
 
+  $items['admin/config/project/releases'] = array(
+    'title' => 'Regenerate Release XML',
+    'page callback' => 'backdrop_get_form',
+    'page arguments' => array('project_release_admin_regenerate_form'),
+    'access arguments' => array('administer projects'),
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'project_release.admin.inc',
+  );
+
   $items['node/%project/edit/releases'] = array(
     'title' => 'Releases',
     'page callback' => 'project_release_project_edit_releases',
