@@ -19,8 +19,8 @@ function project_code_sign_admin_form($form, &$form_state) {
   $rows = array();
   foreach($signing_profiles as $key => $profile) {
     $rows[$key] = array(
-      'name' => check_plain($profile['#name']),
-      'crypto_engine' => $profile['#crypto_engine'],
+      'name' => check_plain($profile['name']),
+      'crypto_engine' => $profile['crypto_engine'],
       'profile_id' => check_plain($key),
     );
   }

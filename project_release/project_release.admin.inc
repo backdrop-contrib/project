@@ -9,10 +9,16 @@
  * An admin page with a button to regenerate the project XML for all projects.
  */
 function project_release_admin_regenerate_form($form, &$form_state) {
+  $form['help'] = array(
+    '#type' => 'help',
+    '#markup' => t('Deleting all project release XML files will cause them to be generate next time they are requested. Note this can cause substantial load as new files are generated. This should only be done if all XML release files need to be updated.'),
+  );
 
-  $form['submit'] = array(
+  $form['actions']['#type'] = 'actions';
+  $form['actions']['submit'] = array(
     '#type' => 'submit',
     '#value' => 'Regenerate Release XML',
+    '#attributes' => array('class' => array('button-danger')),
   );
 
   $form['#submit'][] = 'project_release_admin_regenerate_form_submit';

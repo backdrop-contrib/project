@@ -59,13 +59,13 @@ function project_code_sign_project_release_release_xml_alter(&$project_meta, $re
   $signers = project_code_sign_get_active_signature_profiles();
 
   foreach ($signers as $signer => $signer_info) {
-    $signature = project_code_sign_sign_url($signer_info['#crypto_engine'], $signer_info['#profile_id'], $release, $project_values['date'], $project_values['download_link']);
+    $signature = project_code_sign_sign_url($signer_info['crypto_engine'], $signer_info['profile_id'], $release, $project_values['date'], $project_values['download_link']);
     if ($signature) {
       $sig_list[] = array(
         'key' => 'signature',
         'value' => array(
-          'crypto_engine' => $signer_info['#crypto_engine'],
-          'profile_id' => $signer_info['#profile_id'],
+          'crypto_engine' => $signer_info['crypto_engine'],
+          'profile_id' => $signer_info['profile_id'],
           'signature_block' => $signature,
         ),
       );
