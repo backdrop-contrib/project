@@ -101,18 +101,42 @@ if (db_table_exists('project_telemetry_raw')) {
  *   array, with each key and value being a string.
  */
 function _project_telemetry_save($site_key, $project_name, $project_version, array $project_data) {
-  $project_nid = db_query('SELECT nid FROM {project} WHERE name = :project_name', array(
-    ':project_name' => $project_name,
-  ))->fetchField();
-  $release_nid = db_query('SELECT nid FROM {project_release} WHERE project_nid = :project_nid AND version = :version', array(
-    ':project_nid' => $project_nid,
-    ':version' => $project_version,
-  ))->fetchField();
-  $telemetry_settings = db_query('SELECT * FROM {project_telemetry} WHERE project_nid = :project_nid', array(
-    ':project_nid' => $project_nid,
-  ))->fetchAssoc();
+  static $project_info = array();
 
-  $telemetry_settings['allowed_values'] = unserialize($telemetry_settings['allowed_values']);
+  if (!isset($project_info[$project_name . '-' . $project_version])) {
+    $project_nid = db_query('SELECT nid FROM {project} WHERE name = :project_name', [
+      ':project_name' => $project_name,
+    ])->fetchField();
+
+    if (db_table_exists('project_release')) {
+      $release_nid = db_query('SELECT nid FROM {project_release} WHERE project_nid = :project_nid AND version = :version', [
+        ':project_nid' => $project_nid,
+        ':version' => $project_version,
+      ])->fetchField();
+    }
+    else {
+      $release_nid = NULL;
+    }
+
+    $telemetry_settings = db_query('SELECT * FROM {project_telemetry} WHERE project_nid = :project_nid', [
+      ':project_nid' => $project_nid,
+    ])->fetchAssoc();
+    $telemetry_settings['allowed_values'] = unserialize($telemetry_settings['allowed_values']);
+
+    // Statically cache all values.
+    $project_info[$project_name . '-' . $project_version] = array(
+      'project_nid' => $project_nid,
+      'release_nid' => $release_nid,
+      'telemetry_settings' => $telemetry_settings,
+    );
+  }
+  else {
+    // Used cache data if we've already checked this project's settings.
+    $cached_info = $project_info[$project_name . '-' . $project_version];
+    $project_nid = $cached_info['project_nid'];
+    $release_nid = $cached_info['release_nid'];
+    $telemetry_settings = $cached_info['telemetry_settings'];
+  }
 
   // Do not save values if the project does not have Telemetry data saving
   // enabled. Can be configured per project at /node/*/telemetry/settings.
