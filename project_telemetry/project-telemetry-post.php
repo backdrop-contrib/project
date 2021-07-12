@@ -101,6 +101,25 @@ if (db_table_exists('project_telemetry_raw')) {
  *   array, with each key and value being a string.
  */
 function _project_telemetry_save($site_key, $project_name, $project_version, array $project_data) {
+  $project_nid = db_query('SELECT nid FROM {project} WHERE name = :project_name', array(
+    ':project_name' => $project_name,
+  ))->fetchField();
+  $release_nid = db_query('SELECT nid FROM {project_release} WHERE project_nid = :project_nid AND version = :version', array(
+    ':project_nid' => $project_nid,
+    ':version' => $project_version,
+  ))->fetchField();
+  $telemetry_settings = db_query('SELECT * FROM {project_telemetry} WHERE project_nid = :project_nid', array(
+    ':project_nid' => $project_nid,
+  ))->fetchAssoc();
+
+  $telemetry_settings['allowed_values'] = unserialize($telemetry_settings['allowed_values']);
+
+  // Do not save values if the project does not have Telemetry data saving
+  // enabled. Can be configured per project at /node/*/telemetry/settings.
+  if (!$telemetry_settings['enabled']) {
+    return;
+  }
+
   // Delete previous entries.
   db_delete('project_telemetry_raw')
     ->condition('project_name', $project_name)
@@ -109,16 +128,21 @@ function _project_telemetry_save($site_key, $project_name, $project_version, arr
 
   // Use multi-value insert to save all the new values.
   $query = db_insert('project_telemetry_raw')
-    ->fields(array('project_name', 'site_key', 'timestamp', 'version', 'item_key', 'item_value'));
+    ->fields(array('project_nid', 'project_name', 'site_key', 'timestamp', 'version', 'item_key', 'item_value'));
   foreach ($project_data as $key => $value) {
+    // Only save the allowed values.
+    if (!array_key_exists($key, $telemetry_settings['allowed_values'])) {
+      continue;
+    }
+
     $query->values(array(
       'project_name' => $project_name,
       'site_key' => $site_key,
       'timestamp' => REQUEST_TIME,
       //'version_api' => $project_api_version,
       'version' => $project_version,
-      //'project_nid' => $project_nid,
-      //'release_nid' => $release_nid,
+      'project_nid' => $project_nid,
+      'release_nid' => $release_nid,
       'item_key' => $key,
       'item_value' => $value,
     ));

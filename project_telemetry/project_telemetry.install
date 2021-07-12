@@ -21,6 +21,33 @@ function project_telemetry_uninstall() {
  * Implements hook_schema().
  */
 function project_telemetry_schema() {
+  $schema['project_telemetry'] = array(
+    'description' => 'Stores per-project telemetry settings.',
+    'fields' => array(
+      'project_nid' => array(
+        'description' => 'The {node}.nid of the requested project.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'enabled' => array(
+        'description' => 'Boolean value indicating if collecting Telemetry data is allowed on this project.',
+        'type' => 'int',
+        'size' => 'tiny',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'allowed_values' => array(
+        'type' => 'text',
+        'not null' => TRUE,
+        'serialize' => TRUE,
+        'description' => 'A key-value pair of allowed Telemetry data. Where the key is defined in hook_telemetry_info() and the value is the human-readable label.',
+      ),
+    ),
+    'primary key' => array('project_nid'),
+  );
   $schema['project_telemetry_raw'] = array(
     'description' => 'Table used to store raw usage information.',
     'fields' => array(
