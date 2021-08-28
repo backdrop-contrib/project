@@ -1,0 +1,6 @@
+name = Project telemetry
+description = Collects telemetry data from projects.
+type = module
+package = Project
+backdrop = 1.x
+dependencies[] = project
