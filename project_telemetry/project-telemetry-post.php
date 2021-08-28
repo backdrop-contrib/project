@@ -21,9 +21,8 @@
  * @endcode
  *
  * Configuration within this file is usually unnecessary and settings should be
- * automatically determined. If manual setting of the BACKDROP_ROOT or
- * HISTORY_ROOT constants is required, they may be overridden in the $_ENV
- * variable by your web server.
+ * automatically determined. If manual setting of the BACKDROP_ROOT constant is
+ * required, they may be overridden in the $_ENV variable by your web server.
  */
 
 /**

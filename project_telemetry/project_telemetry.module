@@ -69,16 +69,7 @@ function project_telemetry_node_load(array $nodes, array $types) {
  * Implements hook_node_prepare().
  */
 function project_telemetry_node_prepare(Node $node) {
-  if (project_node_is_project($node)) {
-    // Set default values.
-    if (empty($node->project['telemetry'])) {
-      $node->project['telemetry'] = array();
-    }
-    $node->project['telemetry'] += array(
-      'enabled' => FALSE,
-      'allowed_options' => array(),
-    );
-  }
+  _project_telemetry_node_defaults($node);
 }
 
 /**
@@ -86,6 +77,7 @@ function project_telemetry_node_prepare(Node $node) {
  */
 function project_telemetry_node_insert(Node $node) {
   if (project_node_is_project($node)) {
+    _project_telemetry_node_defaults($node);
     $record = array('project_nid' => $node->nid) + $node->project['telemetry'];
     $record['enabled'] = $record['enabled'] ? 1 : 0;
     backdrop_write_record('project_telemetry', $record);
@@ -97,11 +89,31 @@ function project_telemetry_node_insert(Node $node) {
  */
 function project_telemetry_node_update(Node $node) {
   if (project_node_is_project($node)) {
+    _project_telemetry_node_defaults($node);
     $record = array('project_nid' => $node->nid) + $node->project['telemetry'];
     $record['enabled'] = $record['enabled'] ? 1 : 0;
     $exists = db_query('SELECT project_nid FROM {project_telemetry} WHERE project_nid = :project_nid', array(':project_nid' => $node->nid))->fetchField();
     $primary_keys = $exists ? array('project_nid') : array();
     backdrop_write_record('project_telemetry', $record, $primary_keys);
+  }
+}
+
+/**
+ * Populate default values for telemetry settings on a project node.
+ *
+ * @param Node $node
+ *   A project node, passed by reference.
+ */
+function _project_telemetry_node_defaults(Node $node) {
+  if (project_node_is_project($node)) {
+    // Set default values.
+    if (empty($node->project['telemetry'])) {
+      $node->project['telemetry'] = array();
+    }
+    $node->project['telemetry'] += array(
+      'enabled' => FALSE,
+      'allowed_values' => array(),
+    );
   }
 }
 
