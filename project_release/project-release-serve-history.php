@@ -139,7 +139,7 @@ if (isset($_GET['site_key'])) {
   // We can't call module_exists without bootstrapping to a higher level so
   // we'll settle for checking that the table exists.
   if (db_table_exists('project_usage_raw')) {
-    // Have to include password.inc for user_check_password().
+    // Have to include password.inc for user_hash_password().
     require_once BACKDROP_ROOT . '/' . settings_get('password_inc', 'core/includes/password.inc');
 
     $site_key = $_GET['site_key'];

@@ -254,12 +254,12 @@ function project_usage_schema() {
  * Hash IP addresses for privacy.
  */
 function project_usage_update_1000() {
-  // Include password.inc for user_check_password().
+  // Include password.inc for user_hash_password().
   require_once BACKDROP_ROOT . '/' . settings_get('password_inc', 'core/includes/password.inc');
 
   // Update raw values. Hashed IPs have a longer value (55 characters) than an
   // IP address (16 characters max).
-  $raw_rows = db_query("SELECT hostname FROM {project_usage_raw} WHERE LENGTH(hostname) <= :hash_length GROUP BY hostname", array(
+  $raw_rows = db_query("SELECT hostname FROM {project_usage_raw} WHERE LENGTH(hostname) < :hash_length GROUP BY hostname", array(
     'hash_length' => BACKDROP_HASH_LENGTH,
   ));
 
@@ -271,7 +271,7 @@ function project_usage_update_1000() {
   }
 
   // Update daily values with a hashed IP address.
-  $day_rows = db_query("SELECT hostname FROM {project_usage_day} WHERE LENGTH(hostname) <= :hash_length GROUP BY hostname", array(
+  $day_rows = db_query("SELECT hostname FROM {project_usage_day} WHERE LENGTH(hostname) < :hash_length GROUP BY hostname", array(
     'hash_length' => BACKDROP_HASH_LENGTH,
   ));
   foreach ($day_rows as $day_row) {
