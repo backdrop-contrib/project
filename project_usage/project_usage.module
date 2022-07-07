@@ -105,7 +105,10 @@ function project_usage_theme() {
       'path' => $path,
     ),
     'project_usage_total' => array(
-      'variables' => array('total' => NULL),
+      'variables' => array(
+        'project' => NULL,
+        'total' => NULL,
+      ),
     ),
   );
 }
@@ -262,6 +265,7 @@ function project_usage_node_view($node) {
   if (project_node_is_project($node)) {
     $node->content['project_usage'] = array(
       '#theme' => 'project_usage_total',
+      '#project' => $node->project['name'],
       '#total' => $node->project['usage'],
     );
   }
@@ -303,6 +307,7 @@ function project_usage_block_view($delta = '', $settings = array(), $contexts = 
       $block['subject'] = t('Usage Statistics');
       $block['content'] = array(
         '#theme' => 'project_usage_total',
+        '#project' => $contexts['node']->project['name'],
         '#total' => $contexts['node']->project['usage'],
       );
       break;
@@ -317,7 +322,7 @@ function project_usage_block_view($delta = '', $settings = array(), $contexts = 
 function theme_project_usage_total($variables) {
   $output  = '<div class="project-usage">';
   $output .= '  <div class="usage-total">' . number_format($variables['total']) . '</div>';
-  $output .= '  <div class="usage-label">' . t('Active installs') . '</div>';
+  $output .= '  <div class="usage-label">' . l(t('Active installs'), 'project/usage/' . $variables['project']) . '</div>';
   $output .= '</div>';
 
   return $output;
