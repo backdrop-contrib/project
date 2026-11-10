@@ -424,6 +424,63 @@ function project_usage_release_page($node) {
 }
 
 /**
+ * Return the total usage count for a project.
+ *
+ * @param string $project_name
+ *   The machine name of the project.
+ *
+ * @return array
+ *   A result array containing values for:
+ *     - success (bool)
+ *     - value (NULL|int)
+ *     - message (NULL|string)
+ */
+function project_usage_server($project_name) {
+  // Check that the project name is plain text.
+  if ($project_name !== check_plain($project_name)) {
+    $result = array(
+      'success' => FALSE,
+      'value' => NULL,
+      'message' => t('Error. Invalid project name.'),
+    );
+    return project_usage_server_return($result);
+  }
+  // Get the project node ID from project name.
+  $project_nid = project_get_nid_from_machine_name($project_name);
+
+  if ($project_nid === FALSE) {
+    $result = array(
+      'success' => FALSE,
+      'value' => NULL,
+      'message' => t('Error. Project not found'),
+    );
+    return project_usage_server_return($result);
+  }
+
+  $usage_count = project_usage_get_project_total_usage((int) $project_nid);
+  $result = array(
+    'success' => TRUE,
+    'value' => $usage_count,
+    'message' => NULL,
+  );
+    return project_usage_server_return($result);
+
+}
+
+/**
+ * Return JSON to the client.
+ *
+ * @param array $result
+ *   An array of the result.
+ */
+function project_usage_server_return(array $result) {
+  backdrop_add_http_header('Content-Type', 'application/json; charset=utf-8');
+  print json_encode($result);
+  exit();
+}
+
+
+/**
  * Theme the output of project/usage/<project> page.
  *
  * @param $variables
@@ -648,4 +705,3 @@ function project_usage_chart_axis_labels(&$args, $labels) {
   }
   $args['chxl'] = implode('|', $l);
 }
-

@@ -58,6 +58,12 @@ function project_usage_menu() {
     'access arguments' => array('view project usage'),
     'file' => 'project_usage.pages.inc',
   );
+  $items['project/usage/server/%'] = array(
+    'page callback' => 'project_usage_server',
+    'page arguments' => array(3),
+    'access arguments' => array('access project usage server'),
+    'file' => 'project_usage.pages.inc',
+  );
   return $items;
 }
 
@@ -130,6 +136,10 @@ function project_usage_permission() {
     'view project usage' => array(
       'title' => t('view project usage'),
       'description' => t('View project usage statistics'),
+    ),
+    'access project usage server' => array(
+      'title' => t('Access project usage server'),
+      'description' => t('Access API for retrieving project usage data through JSON.'),
     ),
   );
 }
