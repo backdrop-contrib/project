@@ -436,8 +436,11 @@ function project_usage_release_page($node) {
  *     - message (NULL|string)
  */
 function project_usage_server($project_name) {
-  // Check that the project name is plain text.
-  if ($project_name !== check_plain($project_name)) {
+  // Check that the project name is plain text and only valid characters.
+  $project_name = strtolower($project_name);
+  $is_check_plain = $project_name === check_plain($project_name);
+  $is_valid_chars = preg_match('/^[a-z0-9_]+$/', $project_name);
+  if (!$is_check_plain || !$is_valid_chars) {
     $result = array(
       'success' => FALSE,
       'value' => NULL,
