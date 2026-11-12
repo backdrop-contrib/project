@@ -58,9 +58,10 @@ function project_usage_menu() {
     'access arguments' => array('view project usage'),
     'file' => 'project_usage.pages.inc',
   );
-  $items['project/usage/server/%'] = array(
+  $items['project_usage/server/%'] = array(
+    'delivery callback' => 'backdrop_json_deliver',
     'page callback' => 'project_usage_server',
-    'page arguments' => array(3),
+    'page arguments' => array(2),
     'access arguments' => array('access project usage server'),
     'file' => 'project_usage.pages.inc',
   );

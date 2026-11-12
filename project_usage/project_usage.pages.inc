@@ -446,7 +446,7 @@ function project_usage_server($project_name) {
       'value' => NULL,
       'message' => t('Error. Invalid project name.'),
     );
-    return project_usage_server_return($result);
+    return $result;
   }
   // Get the project node ID from project name.
   $project_nid = project_get_nid_from_machine_name($project_name);
@@ -457,7 +457,7 @@ function project_usage_server($project_name) {
       'value' => NULL,
       'message' => t('Error. Project not found'),
     );
-    return project_usage_server_return($result);
+    return $result;
   }
 
   $usage_count = project_usage_get_project_total_usage((int) $project_nid);
@@ -466,22 +466,8 @@ function project_usage_server($project_name) {
     'value' => $usage_count,
     'message' => NULL,
   );
-    return project_usage_server_return($result);
-
+    return $result;
 }
-
-/**
- * Return JSON to the client.
- *
- * @param array $result
- *   An array of the result.
- */
-function project_usage_server_return(array $result) {
-  backdrop_add_http_header('Content-Type', 'application/json; charset=utf-8');
-  print json_encode($result);
-  exit();
-}
-
 
 /**
  * Theme the output of project/usage/<project> page.
