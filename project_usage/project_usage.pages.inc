@@ -424,6 +424,52 @@ function project_usage_release_page($node) {
 }
 
 /**
+ * Return the total usage count for a project.
+ *
+ * @param string $project_name
+ *   The machine name of the project.
+ *
+ * @return array
+ *   A result array containing values for:
+ *     - success (bool)
+ *     - value (NULL|int)
+ *     - message (NULL|string)
+ */
+function project_usage_server($project_name) {
+  // Check that the project name is plain text and only valid characters.
+  $project_name = strtolower($project_name);
+  $is_check_plain = $project_name === check_plain($project_name);
+  $is_valid_chars = preg_match('/^[a-z0-9_]+$/', $project_name);
+  if (!$is_check_plain || !$is_valid_chars) {
+    $result = array(
+      'success' => FALSE,
+      'value' => NULL,
+      'message' => t('Error. Invalid project name.'),
+    );
+    return $result;
+  }
+  // Get the project node ID from project name.
+  $project_nid = project_get_nid_from_machine_name($project_name);
+
+  if ($project_nid === FALSE) {
+    $result = array(
+      'success' => FALSE,
+      'value' => NULL,
+      'message' => t('Error. Project not found'),
+    );
+    return $result;
+  }
+
+  $usage_count = project_usage_get_project_total_usage((int) $project_nid);
+  $result = array(
+    'success' => TRUE,
+    'value' => $usage_count,
+    'message' => NULL,
+  );
+    return $result;
+}
+
+/**
  * Theme the output of project/usage/<project> page.
  *
  * @param $variables
@@ -648,4 +694,3 @@ function project_usage_chart_axis_labels(&$args, $labels) {
   }
   $args['chxl'] = implode('|', $l);
 }
-
